@@ -1,4 +1,5 @@
 import os
+import argparse
 
 import hgs.tools as tools
 from hgs.baselines.hgs_vrptw import hgspy
@@ -6,8 +7,8 @@ from wurlitzer import pipes
 
 import cvrplib
 
-HG = 'Vrp-Set-HG'
-SOLOMON = 'Vrp-Set-Solomon'
+HG = 'Vrp-Set-HG' # n=[200, 1000]
+SOLOMON = 'Vrp-Set-Solomon' # n=100
 
 def call_hgs(instance, cpp_output=False):
     """Calls the HGS solver with default config and passing in problem instance data"""
@@ -63,17 +64,26 @@ def build_instance_for_hgs(inst: cvrplib.Instance.VRPTW):
 
 
 if __name__ == "__main__":
-    # ORTEC benchmarks
-    # instance_name = 'ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35'
-    # inst = tools.read_vrplib(os.path.join('hgs/instances', f'{instance_name}.txt'))
-    # # converts dict of numpy objects to a dict of standard python list objects suitable for HGS consumption
-    # instance = tools.inst_to_vars(inst)
+    parser = argparse.ArgumentParser(description="Example usages: "
+                                                 "python3 solver_hgs.py -b=1 -n='C206' | "
+                                                 "python3 solver_hgs.py -b=2 -n='C1_2_1' | "
+                                                 "python3 solver_hgs.py -b=3 -n='ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35'")
+    parser.add_argument('-n', '--instance_name', required=True,
+                        help='benchmark instance name without file extension, e.g. "C206"')
+    parser.add_argument('-b', '--benchmark', default=1, choices=[1, 2, 3], type=int,
+                        help='benchmark dataset to use: 1=Solomon (1987), 2=Homberger and Gehring (1999), '
+                             '3=ORTEC (benchmarks from EURO Meets NeurIPS 2022 Vehicle Routing Competition). Default=1')
+    args = parser.parse_args()
 
-    # CVRPLIB benchmarks
-    instance_name = 'C206'
-    inst = cvrplib.read(f'CVRPLIB/{SOLOMON}/{instance_name}.txt')
-    # # print([k for k, v in vars(inst).items()])
-    instance = build_instance_for_hgs(inst)
+    if args.benchmark == 1 or args.benchmark == 2: # Solomon or HG
+        benchmark = SOLOMON if args.benchmark == 1 else HG
+        inst = cvrplib.read(f'CVRPLIB/{benchmark}/{args.instance_name}.txt')
+        # print([k for k, v in vars(inst).items()])
+        instance = build_instance_for_hgs(inst)
+    else: # ORTEC
+        inst = tools.read_vrplib(os.path.join('hgs/instances', f'{args.instance_name}.txt'))
+        # converts dict of numpy objects to a dict of standard python list objects suitable for HGS consumption
+        instance = tools.inst_to_vars(inst)
 
     # solution = call_hgs(instance)
     # cost, routes = solution.cost, solution.routes
