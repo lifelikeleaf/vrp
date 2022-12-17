@@ -59,15 +59,15 @@ def build_instance_for_hgs(inst: cvrplib.Instance.VRPTW):
         time_windows=[(inst.earliest[i], inst.latest[i]) for i in range(len(inst.earliest))],
         service_durations=inst.service_times,
         duration_matrix=inst.distances,
-        release_times=[0] * len(inst.coordinates),
+        release_times=[0] * len(inst.coordinates), # not used but required by hgspy.Params
     )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Example usages: "
-                                                 "python3 solver_hgs.py -b=1 -n='C206' | "
-                                                 "python3 solver_hgs.py -b=2 -n='C1_2_1' | "
-                                                 "python3 solver_hgs.py -b=3 -n='ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35'")
+                                    f"python {os.path.basename(__file__)} -b=1 -n='C206' | "
+                                    f"python {os.path.basename(__file__)} -b=2 -n='C1_2_1' | "
+                                    f"python {os.path.basename(__file__)} -b=3 -n='ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35'")
     parser.add_argument('-n', '--instance_name', required=True,
                         help='benchmark instance name without file extension, e.g. "C206"')
     parser.add_argument('-b', '--benchmark', default=1, choices=[1, 2, 3], type=int,
