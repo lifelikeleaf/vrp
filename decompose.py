@@ -1,6 +1,7 @@
 import os
 import argparse
 import time
+from multiprocessing import Pool
 
 from sklearn.cluster import KMeans
 import cvrplib
@@ -89,7 +90,7 @@ def build_decomposed_instance(inst, cluster):
             customer_duration_row.append(inst.distances[customer_id][customer_id_again])
         duration_matrix.append(customer_duration_row)
 
-    decomposed_instance = dict(
+    decomp_inst = dict(
         coords=coords,
         demands=demands,
         vehicle_cap=inst.capacity,
@@ -98,8 +99,68 @@ def build_decomposed_instance(inst, cluster):
         duration_matrix=duration_matrix,
         release_times=[0] * len(coords), # not used but required by hgspy.Params
     )
-    
-    return decomposed_instance
+
+    print('cluster size: ', len(cluster))
+    print('coords: ', np.array(decomp_inst['coords']).shape)
+    print('demands: ', np.array(decomp_inst['demands']).shape)
+    print('vehicle_cap: ', decomp_inst['vehicle_cap'])
+    print('time_windows: ', np.array(decomp_inst['time_windows']).shape)
+    print('service_durations: ', np.array(decomp_inst['service_durations']).shape)
+    print('duration_matrix: ', np.array(decomp_inst['duration_matrix']).shape)
+    print()
+
+    return decomp_inst
+
+
+def map_decomposed_to_original_customer_ids(decomp_routes, cluster):
+    '''Map subproblem customer IDs back to the original customer IDs.'''
+    original_routes = []
+    for route in decomp_routes:
+        # shift cluster index by 1 bc customer IDs start at 1 (0 is the depot)
+        # customer with id=1 in the subproblem is the customer with id=cluster[0] in the original problem
+        route_with_original_customer_ids = [cluster[customer_id-1] for customer_id in route]
+        original_routes.append(route_with_original_customer_ids)
+
+    return original_routes
+
+
+def sequential_run_hgs(inst, clusters):
+    total_cost = 0
+    total_routes = []
+    for _, cluster in clusters.items():
+        decomp_inst = build_decomposed_instance(inst, cluster)
+        cost, routes = run_hgs_on_decomposed_instance(decomp_inst, cluster)
+
+        total_cost += cost
+        total_routes.extend(routes)
+
+    return total_cost, total_routes
+
+
+def run_hgs_on_decomposed_instance(decomp_inst, cluster):
+    cost, decomp_routes = hgs.call_hgs(decomp_inst)
+    original_routes = map_decomposed_to_original_customer_ids(decomp_routes, cluster)
+    return cost, original_routes
+
+
+def parallel_run_hgs(inst, clusters):
+    decomp_inst_list = []
+    cluster_list = []
+    for _, cluster in clusters.items():
+        decomp_inst_list.append(build_decomposed_instance(inst, cluster))
+        cluster_list.append(cluster)
+
+    # start worker processes, num workers = num clusters
+    with Pool(processes=len(clusters)) as pool:
+        results = pool.starmap(run_hgs_on_decomposed_instance, list(zip(decomp_inst_list, cluster_list)))
+
+    total_cost = 0
+    total_routes = []
+    for cost, routes in results:
+        total_cost += cost
+        total_routes.extend(routes)
+
+    return total_cost, total_routes
 
 
 if __name__ == "__main__":
@@ -121,9 +182,9 @@ if __name__ == "__main__":
         # print(np.array(inst.distances).shape)
 
         fv = build_feature_vectors_from_cvrplib(inst)
-        start = time.time()
+        # start = time.time()
         labels, clusters = run_k_means(fv, 3)
-        end = time.time()
+        # end = time.time()
         # print('Total run time:', end-start)
         # print('labels:\n', labels)
         print('clusters:\n', clusters)
@@ -133,31 +194,11 @@ if __name__ == "__main__":
         # symmetric diff
         # set(cluster0).symmetric_difference(set(route1))
 
-        total_cost = 0
-        total_routes = []
-        for _, cluster in clusters.items():
-            decomp_inst = build_decomposed_instance(inst, cluster)
-            print('cluster size: ', len(cluster))
-            print('coords: ', np.array(decomp_inst['coords']).shape)
-            print('demands: ', np.array(decomp_inst['demands']).shape)
-            print('vehicle_cap: ', decomp_inst['vehicle_cap'])
-            print('time_windows: ', np.array(decomp_inst['time_windows']).shape)
-            print('service_durations: ', np.array(decomp_inst['service_durations']).shape)
-            print('duration_matrix: ', np.array(decomp_inst['duration_matrix']).shape)
-            print()
-
-            cost, decomp_routes = hgs.call_hgs(decomp_inst)
-
-            # map subproblem customer IDs back to the original customer IDs
-            original_routes = []
-            for route in decomp_routes:
-                # shift cluster index by 1 bc customer IDs start at 1 (0 is the depot)
-                # customer with id=1 in the subproblem is the customer with id=cluster[0] in the original problem
-                route_with_original_customer_ids = [cluster[customer_id-1] for customer_id in route]
-                original_routes.append(route_with_original_customer_ids)
-
-            total_cost += cost
-            total_routes.extend(original_routes)
+        start = time.time()
+        # total_cost, total_routes = sequential_run_hgs(inst, clusters)
+        total_cost, total_routes = parallel_run_hgs(inst, clusters)
+        end = time.time()
+        print('Total run time:', end-start)
 
         print("\n----- Solution -----")
         print("Total cost: ", total_cost)

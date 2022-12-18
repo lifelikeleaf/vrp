@@ -1,5 +1,6 @@
 import os
 import argparse
+import time
 
 import hgs.tools as tools
 from hgs.baselines.hgs_vrptw import hgspy
@@ -87,7 +88,10 @@ if __name__ == "__main__":
 
     # solution = call_hgs(instance)
     # cost, routes = solution.cost, solution.routes
+    start = time.time()
     cost, routes = call_hgs(instance)
+    end = time.time()
+    print('Total run time:', end-start)
 
     print("\n----- Solution -----")
     print("Cost: ", cost)
