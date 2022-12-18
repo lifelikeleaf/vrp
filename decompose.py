@@ -14,6 +14,14 @@ SOLOMON = 'Vrp-Set-Solomon' # n=100
 
 
 def build_feature_vectors_from_cvrplib(inst: cvrplib.Instance.VRPTW):
+    """Build feature vectors for clustering from instance data read from cvrplib.
+    
+    Params:
+    - inst: benchmark instance data read from cvrplib
+
+    Returns:
+    - fv: a list of feature vectors representing the customers to be clustered, excluding the depot
+    """
     fv = []
     for i in range(len(inst.coordinates)):
         row = []
@@ -23,7 +31,18 @@ def build_feature_vectors_from_cvrplib(inst: cvrplib.Instance.VRPTW):
     # By CVRPLIB convention, index 0 is always depot; depot should not be clustered
     return fv[1:]
 
+
 def run_k_means(fv, n_clusters):
+    """Run the k-means algorithm with the given feature vectors and number of clusters.
+    
+    Params:
+    - fv: a list of feature vectors representing the customers to be clustered
+    - n_cluster: number of clusters
+
+    Returns:
+    - labels: a list of labels indicating which cluster a customer belongs to
+    - clusters: a list of clusters of customer IDs
+    """
     kmeans = KMeans(n_clusters=n_clusters, n_init=10).fit(fv)
     labels = kmeans.labels_
     # a dict of clustered customer IDs
@@ -34,8 +53,17 @@ def run_k_means(fv, n_clusters):
 
     return labels, clusters
 
+
 def build_decomposed_instance(inst, cluster):
-    """Build a decomposed problem instance by selecting the depot and customers in the given cluster only"""
+    """Build a decomposed problem instance (i.e. a subproblem) by selecting the depot and customers in the given cluster only.
+    
+    Params:
+    - inst: original problem instance
+    - cluster: a list clustered customer IDs
+
+    Returns:
+    - decomposed_instance: a decomposed problem instance suitable for HGS consumption
+    """
     # init with attributes of the depot
     depot = 0
     coords = [tuple(inst.coordinates[depot])]
@@ -61,11 +89,6 @@ def build_decomposed_instance(inst, cluster):
             customer_duration_row.append(inst.distances[customer_id][customer_id_again])
         duration_matrix.append(customer_duration_row)
 
-    decomposed_to_original_customer_id_map = {}
-    for i in range(len(cluster)):
-        # shift by 1 bc index 0 is depot
-        decomposed_to_original_customer_id_map[i+1] = cluster[i]
-
     decomposed_instance = dict(
         coords=coords,
         demands=demands,
@@ -76,7 +99,8 @@ def build_decomposed_instance(inst, cluster):
         release_times=[0] * len(coords), # not used but required by hgspy.Params
     )
     
-    return decomposed_instance, decomposed_to_original_customer_id_map
+    return decomposed_instance
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Example usages: "
@@ -108,10 +132,11 @@ if __name__ == "__main__":
         # set(route1) - set(cluster0)
         # symmetric diff
         # set(cluster0).symmetric_difference(set(route1))
+
         total_cost = 0
         total_routes = []
         for _, cluster in clusters.items():
-            decomp_inst, decomposed_to_original_customer_id_map = build_decomposed_instance(inst, cluster)
+            decomp_inst = build_decomposed_instance(inst, cluster)
             print('cluster size: ', len(cluster))
             print('coords: ', np.array(decomp_inst['coords']).shape)
             print('demands: ', np.array(decomp_inst['demands']).shape)
@@ -119,20 +144,25 @@ if __name__ == "__main__":
             print('time_windows: ', np.array(decomp_inst['time_windows']).shape)
             print('service_durations: ', np.array(decomp_inst['service_durations']).shape)
             print('duration_matrix: ', np.array(decomp_inst['duration_matrix']).shape)
-            print('orignal customer IDs: ', decomposed_to_original_customer_id_map)
             print()
 
-            # cost, routes = hgs.call_hgs(decomp_inst)
+            cost, decomp_routes = hgs.call_hgs(decomp_inst)
 
-            """TODO: map customer IDs back to the original IDs"""
+            # map subproblem customer IDs back to the original customer IDs
+            original_routes = []
+            for route in decomp_routes:
+                # shift cluster index by 1 bc customer IDs start at 1 (0 is the depot)
+                # customer with id=1 in the subproblem is the customer with id=cluster[0] in the original problem
+                route_with_original_customer_ids = [cluster[customer_id-1] for customer_id in route]
+                original_routes.append(route_with_original_customer_ids)
 
-            # total_cost += cost
-            # total_routes.extend(routes)
+            total_cost += cost
+            total_routes.extend(original_routes)
 
-        # print("\n----- Solution -----")
-        # print("Total cost: ", total_cost)
-        # for i, route in enumerate(total_routes):
-        #     print(f"Route {i}:", route)
+        print("\n----- Solution -----")
+        print("Total cost: ", total_cost)
+        for i, route in enumerate(total_routes):
+            print(f"Route {i}:", route)
 
     else: # ORTEC
         inst = tools.read_vrplib(os.path.join('hgs/instances', f'{args.instance_name}.txt'))
