@@ -2,11 +2,17 @@ import os
 import argparse
 import time
 from multiprocessing import Pool
+import math
 
 from sklearn.cluster import KMeans
+from sklearn.cluster import AffinityPropagation as AP
+from sklearn.metrics import pairwise_distances
+from sklearn_extra.cluster import KMedoids
+import kmedoids as fast_kmedoids
 import cvrplib
 import hgs.tools as tools
 import numpy as np
+from scipy.spatial.distance import euclidean
 
 import solver_hgs as hgs
 
@@ -14,11 +20,32 @@ HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
 
 
-def build_feature_vectors_from_cvrplib(inst: cvrplib.Instance.VRPTW):
-    """Build feature vectors for clustering from instance data read from cvrplib.
+def get_min_tours(inst):
+    """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
+
+    Params:
+    - inst: benchmark instance data
+    """
+    # total demand of all customers / vehicle capacity
+    return math.ceil(sum(inst.demands) / inst.capacity)
+
+
+def compute_pairwise_spatial_temportal_distance(node_1, node_2):
+    # The callable should take two arrays from X as input and return a value indicating the distance between them.
+    return euclidean(node_1, node_2) # PLACEHOLDER TODO: implement TWOL
+
+
+def compute_spatial_temportal_distance_matrix(fv):
+    # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
+    metric = compute_pairwise_spatial_temportal_distance
+    return pairwise_distances(fv, metric=metric)
+
+
+def build_feature_vectors(inst: cvrplib.Instance.VRPTW):
+    """Build feature vectors for clustering from instance data.
     
     Params:
-    - inst: benchmark instance data read from cvrplib
+    - inst: benchmark instance data
 
     Returns:
     - fv: a list of feature vectors representing the customers to be clustered, excluding the depot
@@ -33,7 +60,18 @@ def build_feature_vectors_from_cvrplib(inst: cvrplib.Instance.VRPTW):
     return fv[1:]
 
 
+def get_clusters(labels, n_clusters):
+    # a dict of clustered customer IDs (array index in labels)
+    clusters = {f'cluster{i}': [] for i in range(n_clusters)}
+    for i in range(len(labels)):
+        # customer id is shifted by 1 bc index 0 is depot
+        clusters[f'cluster{labels[i]}'].append(i+1)
+
+    return clusters
+
+
 def run_k_means(fv, n_clusters):
+    # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     """Run the k-means algorithm with the given feature vectors and number of clusters.
     
     Params:
@@ -44,15 +82,43 @@ def run_k_means(fv, n_clusters):
     - labels: a list of labels indicating which cluster a customer belongs to
     - clusters: a list of clusters of customer IDs
     """
+    print('Running k-means...')
     kmeans = KMeans(n_clusters=n_clusters, n_init=10).fit(fv)
     labels = kmeans.labels_
-    # a dict of clustered customer IDs
-    clusters = {f'cluster{i}': [] for i in range(n_clusters)}
-    for i in range(len(labels)):
-        # customer id is shifted by 1 bc index 0 is depot
-        clusters[f'cluster{labels[i]}'].append(i+1)
+    return get_clusters(labels, n_clusters)
 
-    return labels, clusters
+
+def run_k_medoids(fv, n_clusters):
+    # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
+    print('Running k-medoids...')
+    # metric = 'euclidean' #  or a callable
+    metric = 'precomputed' # for 'precomputed' must pass the fit() method a distance matrix instead of a fv
+    dist_matrix = compute_spatial_temportal_distance_matrix(fv)
+    method = 'pam'
+    init = 'k-medoids++' # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
+    kmedoids = KMedoids(n_clusters=n_clusters, metric=metric, method=method, init=init).fit(dist_matrix)
+    labels = kmedoids.labels_
+    return get_clusters(labels, n_clusters)
+
+
+def run_k_medoids_fasterpam(fv, n_clusters):
+    print('Running k-medoids FasterPAM...')
+    dist_matrix = compute_spatial_temportal_distance_matrix(fv)
+    init = 'first' # {"random", "first", "build"}
+    kmedoids = fast_kmedoids.fasterpam(dist_matrix, n_clusters, init=init)
+    labels = kmedoids.labels
+    # kmedoids.loss: Loss of this clustering (sum of deviations), can be used to pick best out of 10 inits
+    return get_clusters(labels, n_clusters)
+
+
+def run_ap(fv):
+    # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
+    print('Running Affinity Propogation...')
+    affinity = 'euclidean' # {'precomputed', 'euclidean'}
+    ap = AP(affinity=affinity).fit(fv)
+    labels = ap.labels_
+    n_clusters = len(ap.cluster_centers_indices_)
+    return get_clusters(labels, n_clusters)
 
 
 def build_decomposed_instance(inst, cluster):
@@ -138,6 +204,7 @@ def sequential_run_hgs(inst, clusters):
 
 
 def run_hgs_on_decomposed_instance(decomp_inst, cluster):
+    print(f"Process ID: {os.getpid()}")
     cost, decomp_routes = hgs.call_hgs(decomp_inst)
     original_routes = map_decomposed_to_original_customer_ids(decomp_routes, cluster)
     return cost, original_routes
@@ -150,8 +217,10 @@ def parallel_run_hgs(inst, clusters):
         decomp_inst_list.append(build_decomposed_instance(inst, cluster))
         cluster_list.append(cluster)
 
-    # start worker processes, num workers = num clusters
-    with Pool(processes=len(clusters)) as pool:
+    # start worker processes
+    # num_workers = min(os.cpu_count(), len(clusters))
+    num_workers = len(clusters)
+    with Pool(processes=num_workers) as pool:
         results = pool.starmap(run_hgs_on_decomposed_instance, list(zip(decomp_inst_list, cluster_list)))
 
     total_cost = 0
@@ -181,13 +250,19 @@ if __name__ == "__main__":
         inst, sol = cvrplib.read(instance_path=f'{path}.txt', solution_path=f'{path}.sol')
         # print(np.array(inst.distances).shape)
 
-        fv = build_feature_vectors_from_cvrplib(inst)
-        # start = time.time()
-        labels, clusters = run_k_means(fv, 3)
-        # end = time.time()
-        # print('Total run time:', end-start)
-        # print('labels:\n', labels)
-        print('clusters:\n', clusters)
+        fv = build_feature_vectors(inst)
+        # print(fv[0:4])
+
+        start = time.time()
+        num_clusters = 3
+        # clusters = run_k_means(fv, num_clusters) # same result with 2 or 3 clusters
+        clusters = run_k_medoids(fv, num_clusters) # cluster sizes are better balanced than k-means; better result with 3 clusters
+        # clusters = run_k_medoids_fasterpam(fv, num_clusters) # actually runs slower; same result as standard medoids as expected
+        # clusters = run_ap(fv) # had 9 clusters; TODO: control num of clusters?
+
+        end = time.time()
+        print('Cluster run time:', end-start)
+        print(f'{len(clusters)} clusters:\n', clusters)
 
         # asymmetric diff
         # set(route1) - set(cluster0)
@@ -198,7 +273,7 @@ if __name__ == "__main__":
         # total_cost, total_routes = sequential_run_hgs(inst, clusters)
         total_cost, total_routes = parallel_run_hgs(inst, clusters)
         end = time.time()
-        print('Total run time:', end-start)
+        print('Solver run time:', end-start)
 
         print("\n----- Solution -----")
         print("Total cost: ", total_cost)

@@ -11,14 +11,14 @@ import cvrplib
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
 
-def call_hgs(instance, cpp_output=False):
+def call_hgs(instance, time_limit=10, cpp_output=False):
     """Calls the HGS solver with default config and passing in problem instance data"""
 
     # Capture C-level stdout/stderr
     with pipes() as (out, err):
         config = hgspy.Config(
             nbVeh=-1,
-            timeLimit=10,
+            timeLimit=time_limit,
             useWallClockTime=True
         )
 
