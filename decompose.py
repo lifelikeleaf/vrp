@@ -9,6 +9,7 @@ from sklearn.cluster import AffinityPropagation as AP
 from sklearn.metrics import pairwise_distances
 from sklearn_extra.cluster import KMedoids
 import kmedoids as fast_kmedoids
+
 import cvrplib
 import hgs.tools as tools
 import numpy as np
@@ -18,7 +19,7 @@ import solver_hgs as hgs
 
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
-
+OBJ_MIN_WAIT_TIME = False # is waiting time included in travel time in the objective function?
 
 def get_min_tours(inst):
     """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
@@ -30,22 +31,72 @@ def get_min_tours(inst):
     return math.ceil(sum(inst.demands) / inst.capacity)
 
 
+def get_time_window_overlap_or_gap(tw_1, tw_2):
+    tw_start_1, tw_end_1 = tw_1
+    tw_start_2, tw_end_2 = tw_2
+    # overlap if overlap_or_gap > 0
+    # gap if overlap_or_gap < 0
+    overlap_or_gap = min(tw_end_1, tw_end_2) - max(tw_start_1, tw_start_2)
+    return overlap_or_gap
+
+
 def compute_pairwise_spatial_temportal_distance(node_1, node_2):
     # The callable should take two arrays from X as input and return a value indicating the distance between them.
-    return euclidean(node_1, node_2) # PLACEHOLDER TODO: implement TWOL
+    # node = [x, y, tw_start, tw_end]
+    x1, y1, tw_start_1, tw_end_1 = node_1
+    x2, y2, tw_start_2, tw_end_2 = node_2
+    tw_width_1 = tw_end_1 - tw_start_1
+    tw_width_2 = tw_end_2 - tw_start_2
+    max_tw_width = max(tw_width_1, tw_width_2)
+
+    euclidean_dist = euclidean([x1, y1], [x2, y2])
+    overlap_or_gap = get_time_window_overlap_or_gap([tw_start_1, tw_end_1], [tw_start_2, tw_end_2])
+    temporal_weight = 0
+    if overlap_or_gap >= 0:
+        overlap = overlap_or_gap
+        temporal_weight = (euclidean_dist / max_tw_width) * overlap
+    # else:
+    #     # gap calculated by get_time_window_overlap_or_gap() is a negative number
+    #     # if waiting time is not included in travel time, then large gap b/t time windows is an advantage
+    #     # bc it provides more flexibility for routing
+    #     # so leave it as a negative value will reduce spatial_temportal_distance
+    #     gap = overlap_or_gap
+    #     if OBJ_MIN_WAIT_TIME:
+    #         # if waiting time IS included in travel time, then large gap b/t time windows is a penalty
+    #         # so take its absolute value will increase spatial_temportal_distance
+    #         gap = abs(gap)
+    #     temporal_weight = (1 / euclidean_dist) * gap
+    spatial_temportal_distance = euclidean_dist + temporal_weight
+
+    # only non-negative values
+    return max(0, spatial_temportal_distance)
 
 
 def compute_spatial_temportal_distance_matrix(fv):
     # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
-    metric = compute_pairwise_spatial_temportal_distance
-    return pairwise_distances(fv, metric=metric)
+    metric_callable = compute_pairwise_spatial_temportal_distance
+    return pairwise_distances(fv, metric=metric_callable)
 
 
-def build_feature_vectors(inst: cvrplib.Instance.VRPTW):
+def normalize_feature_vectors(fv):
+    """Normalize feature vectors using z-score."""
+    fv = np.array(fv)
+    # axis=0 -> row axis, runs down the rows, i.e. calculate the mean for each column/feature
+    mean = np.mean(fv, axis=0)
+    # ddof=1 -> degrees of freedom = N-1, i.e. sample std
+    # ddof = 'delta degrees of freedom'
+    # set ddof=0 for population std
+    std = np.std(fv, axis=0, ddof=1)
+    norm = (fv - mean) / std
+    return norm
+
+
+def build_feature_vectors(inst, include_time_windows=False):
     """Build feature vectors for clustering from instance data.
     
     Params:
     - inst: benchmark instance data
+    - include_time_windows: True if time windows should be included in features, else False. Default is False
 
     Returns:
     - fv: a list of feature vectors representing the customers to be clustered, excluding the depot
@@ -53,11 +104,14 @@ def build_feature_vectors(inst: cvrplib.Instance.VRPTW):
     fv = []
     for i in range(len(inst.coordinates)):
         row = []
-        row.extend(inst.coordinates[i]) # only includes x, y coords for now
+        row.extend(inst.coordinates[i]) # x, y coords for customer i
+        if include_time_windows:
+            row.append(inst.earliest[i]) # earliest service start time for customer i
+            row.append(inst.latest[i]) # lastest service start time for customer i
         fv.append(row)
 
     # By CVRPLIB convention, index 0 is always depot; depot should not be clustered
-    return fv[1:]
+    return np.array(fv[1:])
 
 
 def get_clusters(labels, n_clusters):
@@ -88,15 +142,20 @@ def run_k_means(fv, n_clusters):
     return get_clusters(labels, n_clusters)
 
 
-def run_k_medoids(fv, n_clusters):
+def run_k_medoids(fv, n_clusters, include_time_windows=False):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     print('Running k-medoids...')
-    # metric = 'euclidean' #  or a callable
-    metric = 'precomputed' # for 'precomputed' must pass the fit() method a distance matrix instead of a fv
-    dist_matrix = compute_spatial_temportal_distance_matrix(fv)
+    if include_time_windows:
+        print('using time windows...')
+        metric = 'precomputed' # for 'precomputed' must pass the fit() method a distance matrix instead of a fv
+        dist_matrix = compute_spatial_temportal_distance_matrix(fv)
+        X = dist_matrix
+    else:
+        metric = 'euclidean' #  or a callable
+        X = fv
     method = 'pam'
     init = 'k-medoids++' # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
-    kmedoids = KMedoids(n_clusters=n_clusters, metric=metric, method=method, init=init).fit(dist_matrix)
+    kmedoids = KMedoids(n_clusters=n_clusters, metric=metric, method=method, init=init).fit(X)
     labels = kmedoids.labels_
     return get_clusters(labels, n_clusters)
 
@@ -114,8 +173,10 @@ def run_k_medoids_fasterpam(fv, n_clusters):
 def run_ap(fv):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     print('Running Affinity Propogation...')
-    affinity = 'euclidean' # {'precomputed', 'euclidean'}
-    ap = AP(affinity=affinity).fit(fv)
+    affinity = 'precomputed' # {'precomputed', 'euclidean'}
+    # affinity matrix is the negative of distance matrix
+    affinity_matrix = compute_spatial_temportal_distance_matrix(fv) * -1
+    ap = AP(affinity=affinity).fit(affinity_matrix)
     labels = ap.labels_
     n_clusters = len(ap.cluster_centers_indices_)
     return get_clusters(labels, n_clusters)
@@ -234,51 +295,51 @@ def parallel_run_hgs(inst, clusters):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Example usages: "
-                                    f"python {os.path.basename(__file__)} -b=1 -n='C206' | "
-                                    f"python {os.path.basename(__file__)} -b=2 -n='C1_2_1' | "
-                                    f"python {os.path.basename(__file__)} -b=3 -n='ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35'")
+                                    f"python {os.path.basename(__file__)} -b=1 -n='C206' -k=3 -t | "
+                                    f"python {os.path.basename(__file__)} -b=2 -n='C1_2_1' -k=3 -t")
     parser.add_argument('-n', '--instance_name', required=True,
                         help='benchmark instance name without file extension, e.g. "C206"')
-    parser.add_argument('-b', '--benchmark', default=1, choices=[1, 2, 3], type=int,
-                        help='benchmark dataset to use: 1=Solomon (1987), 2=Homberger and Gehring (1999), '
-                             '3=ORTEC (benchmarks from EURO Meets NeurIPS 2022 Vehicle Routing Competition). Default=1')
+    parser.add_argument('-b', '--benchmark', default=1, choices=[1, 2], type=int,
+                        help='benchmark dataset to use: 1=Solomon (1987), 2=Homberger and Gehring (1999); Default=1')
+    parser.add_argument('-k', '--num_clusters', required=True, type=int,
+                        help='number of clusters')
+    parser.add_argument('-t', '--include_time_windows', action='store_true',
+                        help='use time windows for clustering or not')
     args = parser.parse_args()
 
-    if args.benchmark == 1 or args.benchmark == 2: # Solomon or HG
-        benchmark = SOLOMON if args.benchmark == 1 else HG
-        path = f'CVRPLIB/{benchmark}/{args.instance_name}'
-        inst, sol = cvrplib.read(instance_path=f'{path}.txt', solution_path=f'{path}.sol')
-        # print(np.array(inst.distances).shape)
 
-        fv = build_feature_vectors(inst)
-        # print(fv[0:4])
+    benchmark = SOLOMON if args.benchmark == 1 else HG
+    path = f'CVRPLIB/{benchmark}/{args.instance_name}'
+    inst, sol = cvrplib.read(instance_path=f'{path}.txt', solution_path=f'{path}.sol')
+    # print(np.array(inst.distances).shape)
 
-        start = time.time()
-        num_clusters = 3
-        # clusters = run_k_means(fv, num_clusters) # same result with 2 or 3 clusters
-        clusters = run_k_medoids(fv, num_clusters) # cluster sizes are better balanced than k-means; better result with 3 clusters
-        # clusters = run_k_medoids_fasterpam(fv, num_clusters) # actually runs slower; same result as standard medoids as expected
-        # clusters = run_ap(fv) # had 9 clusters; TODO: control num of clusters?
+    # fv = build_feature_vectors(inst)
+    fv = build_feature_vectors(inst, include_time_windows=args.include_time_windows)
+    # print(fv[0:4])
 
-        end = time.time()
-        print('Cluster run time:', end-start)
-        print(f'{len(clusters)} clusters:\n', clusters)
+    start = time.time()
+    num_clusters = args.num_clusters
+    # clusters = run_k_means(fv, num_clusters) # same result with 2 or 3 clusters
+    clusters = run_k_medoids(fv, num_clusters, include_time_windows=args.include_time_windows) # cluster sizes are better balanced than k-means; better result with 3 clusters
+    # clusters = run_k_medoids_fasterpam(fv, num_clusters) # actually runs slower; same result as standard medoids as expected
+    # clusters = run_ap(fv) # had 9 clusters; TODO: control num of clusters? set preference based on k-means++?
 
-        # asymmetric diff
-        # set(route1) - set(cluster0)
-        # symmetric diff
-        # set(cluster0).symmetric_difference(set(route1))
+    end = time.time()
+    print('Cluster run time:', end-start)
+    print(f'{len(clusters)} clusters:\n', clusters)
 
-        start = time.time()
-        # total_cost, total_routes = sequential_run_hgs(inst, clusters)
-        total_cost, total_routes = parallel_run_hgs(inst, clusters)
-        end = time.time()
-        print('Solver run time:', end-start)
+    # asymmetric diff
+    # set(route1) - set(cluster0)
+    # symmetric diff
+    # set(cluster0).symmetric_difference(set(route1))
 
-        print("\n----- Solution -----")
-        print("Total cost: ", total_cost)
-        for i, route in enumerate(total_routes):
-            print(f"Route {i}:", route)
+    start = time.time()
+    # total_cost, total_routes = sequential_run_hgs(inst, clusters)
+    total_cost, total_routes = parallel_run_hgs(inst, clusters)
+    end = time.time()
+    print('Solver run time:', end-start)
 
-    else: # ORTEC
-        inst = tools.read_vrplib(os.path.join('hgs/instances', f'{args.instance_name}.txt'))
+    print("\n----- Solution -----")
+    print("Total cost: ", total_cost)
+    for i, route in enumerate(total_routes):
+        print(f"Route {i}:", route)
