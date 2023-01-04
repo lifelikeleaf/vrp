@@ -2,7 +2,7 @@ import os
 import argparse
 import time
 from multiprocessing import Pool
-import math
+import pprint as p
 
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
@@ -11,24 +11,15 @@ from sklearn_extra.cluster import KMedoids
 import kmedoids as fast_kmedoids
 
 import cvrplib
-import hgs.tools as tools
 import numpy as np
 from scipy.spatial.distance import euclidean
 
 import solver_hgs as hgs
 
+
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
 OBJ_MIN_WAIT_TIME = False # is waiting time included in travel time in the objective function?
-
-def get_min_tours(inst):
-    """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
-
-    Params:
-    - inst: benchmark instance data
-    """
-    # total demand of all customers / vehicle capacity
-    return math.ceil(sum(inst.demands) / inst.capacity)
 
 
 def get_time_window_overlap_or_gap(tw_1, tw_2):
@@ -78,19 +69,6 @@ def compute_spatial_temportal_distance_matrix(fv):
     return pairwise_distances(fv, metric=metric_callable)
 
 
-def normalize_feature_vectors(fv):
-    """Normalize feature vectors using z-score."""
-    fv = np.array(fv)
-    # axis=0 -> row axis, runs down the rows, i.e. calculate the mean for each column/feature
-    mean = np.mean(fv, axis=0)
-    # ddof=1 -> degrees of freedom = N-1, i.e. sample std
-    # ddof = 'delta degrees of freedom'
-    # set ddof=0 for population std
-    std = np.std(fv, axis=0, ddof=1)
-    norm = (fv - mean) / std
-    return norm
-
-
 def build_feature_vectors(inst, include_time_windows=False):
     """Build feature vectors for clustering from instance data.
     
@@ -118,7 +96,7 @@ def get_clusters(labels, n_clusters):
     # a dict of clustered customer IDs (array index in labels)
     clusters = {f'cluster{i}': [] for i in range(n_clusters)}
     for i in range(len(labels)):
-        # customer id is shifted by 1 bc index 0 is depot
+        # customer id is shifted by 1 bc index 0 is depot; and depot is not clustered
         clusters[f'cluster{labels[i]}'].append(i+1)
 
     return clusters
@@ -186,7 +164,7 @@ def build_decomposed_instance(inst, cluster):
     """Build a decomposed problem instance (i.e. a subproblem) by selecting the depot and customers in the given cluster only.
     
     Params:
-    - inst: original problem instance
+    - inst: original problem instance TODO: make it a dict and loop over its keys
     - cluster: a list clustered customer IDs
 
     Returns:
@@ -243,6 +221,7 @@ def map_decomposed_to_original_customer_ids(decomp_routes, cluster):
     '''Map subproblem customer IDs back to the original customer IDs.'''
     original_routes = []
     for route in decomp_routes:
+        # param `cluster` contains the customer ids of the original problem
         # shift cluster index by 1 bc customer IDs start at 1 (0 is the depot)
         # customer with id=1 in the subproblem is the customer with id=cluster[0] in the original problem
         route_with_original_customer_ids = [cluster[customer_id-1] for customer_id in route]
@@ -326,7 +305,8 @@ if __name__ == "__main__":
 
     end = time.time()
     print('Cluster run time:', end-start)
-    print(f'{len(clusters)} clusters:\n', clusters)
+    print(f'{len(clusters)} clusters:')
+    p.pprint(clusters)
 
     # asymmetric diff
     # set(route1) - set(cluster0)
