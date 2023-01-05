@@ -9,22 +9,22 @@ class Node:
 
     Parameters
     ----------
-        x_coord: float
-            A customer node's x coordinate.
-        y_coord: float
-            A customer node's y coordinate.
-        demand: int
-            A customer node's demand.
-        distances: list[float]
-            Distances from this node to any other node (including the depot).
+    x_coord: float
+        A customer node's x coordinate.
+    y_coord: float
+        A customer node's y coordinate.
+    demand: int
+        A customer node's demand.
+    distances: list[float]
+        Distances from this node to any other node (including the depot).
 
-        Optional:
-            start_time: int
-                Earliest service start time for this customer.
-            end_time: int
-                Latest service start time for this customer.
-            service_time: int
-                Service time for this customer.
+    Optional:
+        start_time: int
+            Earliest service start time for this customer.
+        end_time: int
+            Latest service start time for this customer.
+        service_time: int
+            Service time for this customer.
 
     """
     # spatial coordinates
@@ -84,7 +84,17 @@ class VRPInstance:
     Other benchmark instance readers (e.g. cvrplib) tend to represent a VRP
     instance on a 'column' basis (i.e. keyed on attributes). Here a VRP instance
     is represeneted on a 'row' basis, with customers and their attributes
-    encapsulated as a list of `Node` objects.
+    encapsulated as a list of `Node` objects. This class currently only contains
+    the bare minimum data fields. User should extend this class to add more
+    data fields if needed.
+
+    Parameters
+    ----------
+    customers: list[Node]
+        A list of customer nodes.
+    vehicle_capacity: int
+        Vehicle capcity for a homogeneous fleet.
+
     """
     customers: list[Node]
     vehicle_capacity: int
@@ -109,7 +119,7 @@ class AbstractDecomposer(ABC):
         """
         if not issubclass(type(inst), VRPInstance):
             raise TypeError(f'First positional argument must be of type '
-                f'vrp_instance.VRPInstance or its subclass, '
+                f'decomposition.VRPInstance or its subclass, '
                 f'but got type {type(inst)}.')
 
         self.inst = inst
