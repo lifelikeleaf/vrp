@@ -1,43 +1,24 @@
 import os
 import argparse
 import time
-from multiprocessing import Pool
-import pprint as p
 
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
 from sklearn.metrics import pairwise_distances
 from sklearn_extra.cluster import KMedoids
-import kmedoids as fast_kmedoids
 
+from hgs.baselines.hgs_vrptw import hgspy
+from wurlitzer import pipes
 import cvrplib
 import numpy as np
 from scipy.spatial.distance import euclidean
 
 from decomposition import AbstractSolverWrapper, AbstractDecomposer, \
     DecompositionRunner, Node, VRPInstance
-
+import helpers
 
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
-
-
-def convert_to_vrp_instance(benchmark) -> VRPInstance:
-    node_list = []
-    for customer_id in range(len(benchmark.coordinates)):
-        params = dict(
-            x_coord = benchmark.coordinates[customer_id][0],
-            y_coord = benchmark.coordinates[customer_id][1],
-            demand = benchmark.demands[customer_id],
-            distances = benchmark.distances[customer_id],
-            start_time = benchmark.earliest[customer_id],
-            end_time = benchmark.latest[customer_id],
-            service_time = benchmark.service_times[customer_id],
-        )
-        node = Node(**params)
-        node_list.append(node)
-
-    return VRPInstance(node_list, benchmark.capacity)
 
 
 class BaseDecomposer(AbstractDecomposer):
@@ -69,22 +50,23 @@ class BaseDecomposer(AbstractDecomposer):
     def build_feature_vectors(self):
         """Build feature vectors for clustering from VRP problem instance."""
         fv = []
-        customers = self.inst.customers
-        for i in range(len(customers)):
+        nodes = self.inst.nodes
+        for i in range(len(nodes)):
             row = []
             # x, y coords for customer i
-            row.append(customers[i].x_coord)
-            row.append(customers[i].y_coord)
+            row.append(nodes[i].x_coord)
+            row.append(nodes[i].y_coord)
             if self.include_tw:
                 # earliest service start time for customer i
-                row.append(customers[i].start_time)
+                row.append(nodes[i].start_time)
                 # lastest service start time for customer i
-                row.append(customers[i].end_time)
+                row.append(nodes[i].end_time)
             fv.append(row)
 
         # By CVRPLIB convention, index 0 is always depot;
         # depot should not be clustered
         return np.array(fv[1:])
+
 
     def get_clusters(self, labels):
         # array index in labels are customer IDs,
@@ -93,27 +75,98 @@ class BaseDecomposer(AbstractDecomposer):
         for i in range(len(labels)):
             # customer id is shifted by 1 bc index 0 is depot;
             # and depot is not clustered
-            clusters[labels[i]].append(i+1)
+            clusters[labels[i]].append(i + 1)
 
         return clusters
 
 
 class KMeansDecomposer(BaseDecomposer):
     def decompose(self):
-        """Run the k-means algorithm.
-        https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
+        # Run the k-means algorithm.
+        # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
 
-        """
         print('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10).fit(self.fv)
         labels = kmeans.labels_
         return self.get_clusters(labels)
 
 
+class HgsSolverWrapper(AbstractSolverWrapper):
+    def __init__(self, time_limit=10, cpp_output=False) -> None:
+        self.time_limit = time_limit
+        self.cpp_output = cpp_output
 
-class SolverWrapper(AbstractSolverWrapper):
-    def solve(self, inst):
-        pass
+
+    def build_instance_for_hgs(self, inst: VRPInstance):
+        """Converts a `VRPInstance` to argument types
+        accepted by `hgspy.Params`:
+
+        hgspy.Params(
+            config: hgspy.Config,
+            coords: List[Tuple[int, int]],
+            demands: List[int],
+            vehicle_cap: int,
+            time_windows: List[Tuple[int, int]],
+            service_durations: List[int],
+            duration_matrix: List[List[int]],
+            release_times: List[int]
+        )
+        """
+        coords = []
+        demands = []
+        time_windows = []
+        service_durations = []
+        duration_matrix = []
+        for i in range(len(inst.nodes)):
+            node = inst.nodes[i]
+            coords.append((node.x_coord, node.y_coord))
+            demands.append(node.demand)
+            time_windows.append((node.start_time, node.end_time))
+            service_durations.append(node.service_time)
+            duration_matrix.append(node.distances)
+
+        return dict(
+            coords = coords,
+            demands = demands,
+            vehicle_cap = inst.vehicle_capacity,
+            time_windows = time_windows,
+            service_durations = service_durations,
+            duration_matrix = duration_matrix,
+            # not used but required by hgspy.Params
+            release_times=[0] * len(inst.nodes),
+        )
+
+
+    def solve(self, inst: VRPInstance):
+        # Calls the HGS solver with default config and passing in a
+        # VRP problem instance.
+
+        instance = self.build_instance_for_hgs(inst)
+
+        # Capture C-level stdout/stderr
+        with pipes() as (out, err):
+            config = hgspy.Config(
+                nbVeh=-1,
+                timeLimit=self.time_limit,
+                useWallClockTime=True
+            )
+
+            params = hgspy.Params(config, **instance)
+            split = hgspy.Split(params)
+            ls = hgspy.LocalSearch(params)
+            pop = hgspy.Population(params, split, ls)
+            algo = hgspy.Genetic(params, split, pop, ls)
+            algo.run()
+            # get the best found solution (type Individual) from
+            # the population pool
+            solution = pop.getBestFound()
+
+        if self.cpp_output:
+            print(f'Output from C++: \n {out.read()}')
+
+        # return solution
+        # for some reason returning solution alone makes solution.routes = []
+        return solution.cost, solution.routes
 
 
 if __name__ == "__main__":
@@ -145,11 +198,17 @@ if __name__ == "__main__":
         solution_path=f'{path}.sol'
     )
 
-    inst = convert_to_vrp_instance(inst)
+    inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+    decomposer = KMeansDecomposer(inst, args.num_clusters, args.include_time_windows)
+    solver = HgsSolverWrapper()
+    runner = DecompositionRunner(decomposer, solver, parallel_run_solver=True)
 
-    decomposer = KMeansDecomposer(inst, args.num_clusters)
-    clusters = decomposer.decompose()
-    print(f'{len(clusters)} clusters:')
-    for i in range(len(clusters)):
-        print(f'cluster {i} size: {len(clusters[i])}')
-    print(clusters)
+    start = time.time()
+    total_cost, total_routes = runner.run()
+    end = time.time()
+    print('Run time:', end-start)
+
+    print("\n----- Solution -----")
+    print("Total cost: ", total_cost)
+    for i, route in enumerate(total_routes):
+        print(f"Route {i}:", route)
