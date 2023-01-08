@@ -54,5 +54,7 @@ def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
         node_list.append(node)
 
     inst = VRPInstance(node_list, benchmark.capacity)
+    # Example: how to tag extra data fields to VRPInstance
+    # inst.extra = {'num_vehicle': 20, 'distance_limit': 100}
     return inst
 

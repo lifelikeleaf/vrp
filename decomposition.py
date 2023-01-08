@@ -90,13 +90,15 @@ class Node:
 
 @dataclass
 class VRPInstance:
-    """A VRP problem instance representation more suitable for decomposition.
+    """A VRP problem instance representation more intuitive for decomposition.
     Other benchmark instance readers (e.g. cvrplib) tend to represent a VRP
     instance on a 'column' basis (i.e. keyed on attributes). Here a VRP instance
-    is represeneted on a 'row' basis, with customers and their attributes
-    encapsulated as a list of `Node` objects. This class currently only contains
-    the bare minimum data fields. User should extend this class to add more
-    data fields if needed.
+    is represeneted on a 'row' basis, with customers/depot and their attributes
+    encapsulated as a list of `Node` objects. This class only explicitly
+    outlines the bare minimum data fields: `nodes` and `vehicle_capacity`.
+    The user should use the `extra` attribute to add more data fields if needed.
+    If the data field should belong to a customer/depot node, then the user
+    should extend the `Node` class instead.
 
     Parameters
     ----------
@@ -106,9 +108,14 @@ class VRPInstance:
     vehicle_capacity: int
         Vehicle capcity for a homogeneous fleet.
 
+    Optional:
+        extra: dict
+            A dict of additional data fields to include.
+
     """
     nodes: list[Node]
     vehicle_capacity: int
+    extra: dict = None
 
 
 class AbstractDecomposer(ABC):
@@ -121,7 +128,8 @@ class AbstractDecomposer(ABC):
         of type `VRPInstance`.
         Subclasses that override this constructor should pass in
         a `VRPInstance` as the first argument and call
-        `super().__init__(inst)` and use `self.inst` to access it.
+        `super().__init__(inst)`. A reference is kept in `self.inst`.
+        TODO: use descriptor
 
         Parameters
         ----------
@@ -146,10 +154,9 @@ class AbstractDecomposer(ABC):
 
 
     def _check_type(self, inst):
-        if not issubclass(type(inst), VRPInstance):
+        if type(inst) is not VRPInstance:
             raise TypeError(f'Argument must be of type '
-                f'decomposition.VRPInstance or its subclass, '
-                f'but got type {type(inst)}.')
+                f'VRPInstance, but got type {type(inst)}.')
 
 
     @abstractmethod
@@ -208,8 +215,7 @@ class DecompositionRunner:
     """
     def __init__(
         self, decomposer: AbstractDecomposer,
-        solver: AbstractSolverWrapper,
-        parallel_run_solver=True
+        solver: AbstractSolverWrapper
     ) -> None:
         """Creates a `DecompositionRunner`.
 
@@ -226,13 +232,22 @@ class DecompositionRunner:
         """
         self.decomposer = decomposer
         self.solver = solver
-        self.parallel_run_solver = parallel_run_solver
 
 
-    def run(self):
+    def run(self, in_parallel=False, num_workers=1):
         """Solves the VRP problem by first decomposing it into smaller
         subproblems, then solving each subproblem independently, and finally
         returning the combined results.
+
+        Parameters
+        ----------
+        in_parallel: bool
+            Whether to solve the subproblems in parallel. Default is False, i.e.
+            solve subproblems sequentially.
+        
+        num_workers: int
+            The number of workers to use for parallel run. Only used if
+            `in_parallel=True`. Default is 1, i.e. no parallelism.
 
         Returns
         -------
@@ -244,9 +259,10 @@ class DecompositionRunner:
             decomposed subproblems.
 
         """
+        # TODO: should clusters be stored in Decomposer instead?
         self.clusters = self.decomposer.decompose()
-        if self.parallel_run_solver:
-            return self._run_solver_parallel()
+        if in_parallel:
+            return self._run_solver_parallel(num_workers)
         else:
             return self._run_solver_sequential()
 
@@ -266,18 +282,16 @@ class DecompositionRunner:
         return total_cost, total_routes
 
 
-    def _run_solver_parallel(self):
-        """Run solver on decomposed subproblems in parallel."""
+    def _run_solver_parallel(self, num_workers):
+        """Run solver on decomposed subproblems in parallel with the given
+        number of workers."""
         decomp_inst_list = []
-        # cluster_list = []
         for cluster in self.clusters:
             decomp_inst_list.append(self._build_decomposed_instance(cluster))
-            # cluster_list.append(cluster)
 
         # start worker processes
         # TODO: how many workers are appropriate?
         # num_workers = min(os.cpu_count(), len(self.clusters))
-        num_workers = len(self.clusters)
         with Pool(processes=num_workers) as pool:
             results = pool.starmap(
                 self._run_solver_on_decomposed_instance,
@@ -293,7 +307,7 @@ class DecompositionRunner:
         return total_cost, total_routes
 
     
-    def _build_decomposed_instance(self, cluster):
+    def _build_decomposed_instance(self, cluster) -> VRPInstance:
         """Build a subproblem instance including only the depot and
         customers present in the `cluster` list."""
         inst = self.decomposer.inst
@@ -301,13 +315,16 @@ class DecompositionRunner:
         depot = 0
         decomp_inst = VRPInstance(
             [deepcopy(inst.nodes[depot])],
-            inst.vehicle_capacity
+            inst.vehicle_capacity,
+            deepcopy(inst.extra),
         )
+        # update the distance vector of the depot node
         decomp_inst.nodes[depot].distances = \
             inst.nodes[depot].get_decomposed_distances(cluster)
 
         for customer_id in cluster:
             decomp_inst.nodes.append(deepcopy(inst.nodes[customer_id]))
+            # update the distance vector of the node just appended
             decomp_inst.nodes[-1].distances = \
                 inst.nodes[customer_id].get_decomposed_distances(cluster)
 
