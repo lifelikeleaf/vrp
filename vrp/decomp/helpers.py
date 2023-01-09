@@ -3,6 +3,7 @@ import numpy as np
 
 from .decomposition import Node, VRPInstance
 
+
 def get_min_tours(inst):
     """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
 
@@ -24,6 +25,7 @@ def normalize_feature_vectors(fv):
     std = np.std(fv, axis=0, ddof=1)
     norm = (fv - mean) / std
     return norm
+
 
 def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
     """Converts a `cvrplib.Instance.VRPTW` object to a
@@ -58,4 +60,13 @@ def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
     # Example: how to tag extra data fields to VRPInstance
     # inst.extra = {'num_vehicle': 20, 'distance_limit': 100}
     return inst
+
+
+def get_time_window_overlap_or_gap(tw_1, tw_2):
+    tw_start_1, tw_end_1 = tw_1
+    tw_start_2, tw_end_2 = tw_2
+    # overlap if overlap_or_gap > 0
+    # gap if overlap_or_gap < 0
+    overlap_or_gap = min(tw_end_1, tw_end_2) - max(tw_start_1, tw_start_2)
+    return overlap_or_gap
 

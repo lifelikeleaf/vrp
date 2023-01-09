@@ -140,6 +140,7 @@ class AbstractDecomposer(ABC):
         """
         self._check_type(inst)
         self._inst = inst
+        self._clusters = None
 
 
     @property
@@ -151,6 +152,16 @@ class AbstractDecomposer(ABC):
     def inst(self, inst: VRPInstance):
         self._check_type(inst)
         self._inst = inst
+
+
+    @property
+    def clusters(self):
+        return self._clusters
+
+
+    @clusters.setter
+    def clusters(self, clusters):
+        self._clusters = clusters
 
 
     def _check_type(self, inst):
@@ -259,9 +270,10 @@ class DecompositionRunner:
             decomposed subproblems.
 
         """
-        # TODO: should clusters be stored in Decomposer instead?
-        self.clusters = self.decomposer.decompose()
+        self.decomposer.clusters = self.decomposer.decompose()
         if in_parallel:
+            # TODO: validate num_workers > 0, is not None
+            # potential feature: is num_workers <= 0, use appropriate default
             return self._run_solver_parallel(num_workers)
         else:
             return self._run_solver_sequential()
@@ -271,7 +283,7 @@ class DecompositionRunner:
         """Run solver on decomposed subproblems sequentially."""
         total_cost = 0
         total_routes = []
-        for cluster in self.clusters:
+        for cluster in self.decomposer.clusters:
             decomp_inst = self._build_decomposed_instance(cluster)
             cost, routes = \
                 self._run_solver_on_decomposed_instance(decomp_inst, cluster)
@@ -286,16 +298,16 @@ class DecompositionRunner:
         """Run solver on decomposed subproblems in parallel with the given
         number of workers."""
         decomp_inst_list = []
-        for cluster in self.clusters:
+        for cluster in self.decomposer.clusters:
             decomp_inst_list.append(self._build_decomposed_instance(cluster))
 
         # start worker processes
         # TODO: how many workers are appropriate?
-        # num_workers = min(os.cpu_count(), len(self.clusters))
+        # num_workers = min(os.cpu_count(), len(self.decomposer.clusters))
         with Pool(processes=num_workers) as pool:
             results = pool.starmap(
                 self._run_solver_on_decomposed_instance,
-                list(zip(decomp_inst_list, self.clusters))
+                list(zip(decomp_inst_list, self.decomposer.clusters))
             )
 
         total_cost = 0

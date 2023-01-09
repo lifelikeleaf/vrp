@@ -5,7 +5,8 @@ import time
 import cvrplib
 
 from vrp.decomp.decomposition import DecompositionRunner
-from vrp.decomp.decomposers import KMeansDecomposer
+from vrp.decomp.decomposers import KMeansDecomposer, KMedoidsDecomposer, \
+    APDecomposer
 from vrp.decomp.solvers import HgsSolverWrapper
 import vrp.decomp.helpers as helpers
 
@@ -43,7 +44,34 @@ if __name__ == "__main__":
     )
 
     inst = helpers.convert_cvrplib_to_vrp_instance(inst)
-    decomposer = KMeansDecomposer(inst, args.num_clusters, args.include_time_windows)
+
+    # same result with 2 or 3 clusters
+    # decomposer = KMeansDecomposer(
+    #     inst,
+    #     args.num_clusters,
+    #     args.include_time_windows,
+    # )
+
+    # cluster sizes are better balanced than k-means;
+    # better result with 3 clusters
+    decomposer = KMedoidsDecomposer(
+        inst,
+        args.num_clusters,
+        args.include_time_windows,
+        # use_gap=True,
+        # minimize_wait_time=True,
+    )
+
+    # had 9 clusters; TODO: control num of clusters?
+    # set preference based on k-means++? merge clusters?
+    # decomposer = APDecomposer(
+    #     inst,
+    #     args.num_clusters,
+    #     args.include_time_windows,
+    #     use_gap=True,
+    #     # minimize_wait_time=True,
+    # )
+
     solver = HgsSolverWrapper()
     runner = DecompositionRunner(decomposer, solver)
 
