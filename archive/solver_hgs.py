@@ -1,6 +1,14 @@
 import os
+import sys
 import argparse
 import time
+from pathlib import Path
+
+# Add parent dir of this current dir to sys.path so python can find the hgs module.
+path = Path(os.path.dirname(__file__))
+# Only strings should be added to sys.path; all other data types are ignored during import.
+PARENT_DIR = str(path.parent.resolve())
+sys.path.append(PARENT_DIR)
 
 import hgs.tools as tools
 from hgs.baselines.hgs_vrptw import hgspy
@@ -78,11 +86,11 @@ if __name__ == "__main__":
 
     if args.benchmark == 1 or args.benchmark == 2: # Solomon or HG
         benchmark = SOLOMON if args.benchmark == 1 else HG
-        inst = cvrplib.read(f'CVRPLIB/{benchmark}/{args.instance_name}.txt')
+        inst = cvrplib.read(os.path.join(PARENT_DIR, 'CVRPLIB', benchmark, f'{args.instance_name}.txt'))
         # print([k for k, v in vars(inst).items()])
         instance = build_instance_for_hgs(inst)
     else: # ORTEC
-        inst = tools.read_vrplib(os.path.join('hgs/instances', f'{args.instance_name}.txt'))
+        inst = tools.read_vrplib(os.path.join(PARENT_DIR, 'hgs/instances', f'{args.instance_name}.txt'))
         # converts dict of numpy objects to a dict of standard python list objects suitable for HGS consumption
         instance = tools.inst_to_vars(inst)
 

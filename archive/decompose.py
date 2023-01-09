@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
 
     benchmark = SOLOMON if args.benchmark == 1 else HG
-    path = f'CVRPLIB/{benchmark}/{args.instance_name}'
+    path = os.path.join('CVRPLIB', benchmark, args.instance_name)
     inst, sol = cvrplib.read(instance_path=f'{path}.txt', solution_path=f'{path}.sol')
     # print(np.array(inst.distances).shape)
 

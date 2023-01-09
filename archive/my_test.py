@@ -1,13 +1,20 @@
 import os
 import sys
+from pathlib import Path
 import numpy as np
+
+# Add parent dir of this current dir to sys.path so python can find the hgs module.
+path = Path(os.path.dirname(__file__))
+# Only strings should be added to sys.path; all other data types are ignored during import.
+PARENT_DIR = str(path.parent.resolve())
+sys.path.append(PARENT_DIR)
 
 import hgs.tools as tools
 from hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 instance_name = 'ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35' #'ORTEC-VRPTW-ASYM-1bdf25a7-d1-n531-k43'
-instance = tools.read_vrplib(os.path.join('hgs/instances', f'{instance_name}.txt'))
+instance = tools.read_vrplib(os.path.join(PARENT_DIR, 'hgs/instances', f'{instance_name}.txt'))
 x = {
     k: v.shape if isinstance(v, np.ndarray) else None
     for k, v in instance.items()
