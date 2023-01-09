@@ -10,8 +10,8 @@ path = Path(os.path.dirname(__file__))
 PARENT_DIR = str(path.parent.resolve())
 sys.path.append(PARENT_DIR)
 
-import vrp.hgs.tools as tools
-from vrp.hgs.baselines.hgs_vrptw import hgspy
+import vrp.third_party.solver.hgs.tools as tools
+from vrp.third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 import cvrplib
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         # print([k for k, v in vars(inst).items()])
         instance = build_instance_for_hgs(inst)
     else: # ORTEC
-        inst = tools.read_vrplib(os.path.join(PARENT_DIR, 'vrp/hgs/instances', f'{args.instance_name}.txt'))
+        inst = tools.read_vrplib(os.path.join(PARENT_DIR, 'vrp/third_party/solver/hgs/instances', f'{args.instance_name}.txt'))
         # converts dict of numpy objects to a dict of standard python list objects suitable for HGS consumption
         instance = tools.inst_to_vars(inst)
 

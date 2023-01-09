@@ -1,4 +1,4 @@
-from ..hgs.baselines.hgs_vrptw import hgspy
+from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 from .decomposition import AbstractSolverWrapper, VRPInstance

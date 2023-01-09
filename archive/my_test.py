@@ -9,12 +9,12 @@ path = Path(os.path.dirname(__file__))
 PARENT_DIR = str(path.parent.resolve())
 sys.path.append(PARENT_DIR)
 
-import vrp.hgs.tools as tools
-from vrp.hgs.baselines.hgs_vrptw import hgspy
+import vrp.third_party.solver.hgs.tools as tools
+from vrp.third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 instance_name = 'ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35' #'ORTEC-VRPTW-ASYM-1bdf25a7-d1-n531-k43'
-instance = tools.read_vrplib(os.path.join(PARENT_DIR, 'vrp/hgs/instances', f'{instance_name}.txt'))
+instance = tools.read_vrplib(os.path.join(PARENT_DIR, 'vrp/third_party/solver/hgs/instances', f'{instance_name}.txt'))
 x = {
     k: v.shape if isinstance(v, np.ndarray) else None
     for k, v in instance.items()
