@@ -5,7 +5,7 @@ from sklearn.metrics import pairwise_distances
 from sklearn_extra.cluster import KMedoids
 from scipy.spatial.distance import euclidean
 
-from decomposition import AbstractDecomposer
+from .decomposition import AbstractDecomposer
 
 
 class BaseDecomposer(AbstractDecomposer):

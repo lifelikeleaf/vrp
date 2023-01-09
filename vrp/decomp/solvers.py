@@ -1,7 +1,7 @@
-from hgs.baselines.hgs_vrptw import hgspy
+from ..hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
-from decomposition import AbstractSolverWrapper, VRPInstance
+from .decomposition import AbstractSolverWrapper, VRPInstance
 
 class HgsSolverWrapper(AbstractSolverWrapper):
     def __init__(self, time_limit=10, cpp_output=False) -> None:

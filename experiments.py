@@ -4,10 +4,10 @@ import time
 
 import cvrplib
 
-from decomposition import DecompositionRunner
-from decomposers import KMeansDecomposer
-from solvers import HgsSolverWrapper
-import helpers
+from vrp.decomp.decomposition import DecompositionRunner
+from vrp.decomp.decomposers import KMeansDecomposer
+from vrp.decomp.solvers import HgsSolverWrapper
+import vrp.decomp.helpers as helpers
 
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100

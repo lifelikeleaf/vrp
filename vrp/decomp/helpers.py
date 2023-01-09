@@ -1,6 +1,7 @@
 import math
 import numpy as np
-from decomposition import Node, VRPInstance
+
+from .decomposition import Node, VRPInstance
 
 def get_min_tours(inst):
     """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
