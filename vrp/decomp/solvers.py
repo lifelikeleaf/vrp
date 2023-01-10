@@ -2,6 +2,10 @@ from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 from .decomposition import AbstractSolverWrapper, VRPInstance
+from .logger import logger
+
+logger = logger.getChild(__name__)
+
 
 class HgsSolverWrapper(AbstractSolverWrapper):
     def __init__(self, time_limit=10, cpp_output=False) -> None:
@@ -74,7 +78,7 @@ class HgsSolverWrapper(AbstractSolverWrapper):
             solution = pop.getBestFound()
 
         if self.cpp_output:
-            print(f'Output from C++: \n {out.read()}')
+            logger.debug(f'Output from C++: \n {out.read()}')
 
         # return solution
         # for some reason returning solution alone makes solution.routes = []

@@ -7,7 +7,9 @@ from scipy.spatial.distance import euclidean
 
 from .decomposition import AbstractDecomposer
 from . import helpers
+from .logger import logger
 
+logger = logger.getChild(__name__)
 
 class BaseDecomposer(AbstractDecomposer):
     """Abstract base class that implements some common methods used by
@@ -64,11 +66,18 @@ class BaseDecomposer(AbstractDecomposer):
     def get_clusters(self, labels):
         # array index in labels are customer IDs,
         # value at a given index is the cluster ID.
-        clusters = [[] for i in range(self.num_clusters)]
+
+        # labels contains info on the actual number of clusters found,
+        # whereas self.num_clusters is a user provided param.
+        num_clusters = len(set(labels))
+        clusters = [[] for i in range(num_clusters)]
         for i in range(len(labels)):
             # customer id is shifted by 1 bc index 0 is depot;
             # and depot is not clustered
             clusters[labels[i]].append(i + 1)
+
+        logger.info(f'Num clusters: {num_clusters}')
+        logger.info(f'Clusters: \n{clusters}')
 
         return clusters
 
@@ -142,7 +151,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
 class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     def decompose(self):
-        print('Running k-means...')
+        logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
         kmeans.fit(self.feature_vectors)
         labels = kmeans.labels_
@@ -152,9 +161,9 @@ class KMeansDecomposer(BaseDecomposer):
 class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     def decompose(self):
-        print('Running k-medoids...')
+        logger.info('Running k-medoids...')
         if self.include_tw:
-            print('using time windows...')
+            logger.info('using time windows...')
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
             metric = 'precomputed'
@@ -180,9 +189,9 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
 class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     def decompose(self):
-        print('Running Affinity Propogation...')
+        logger.info('Running Affinity Propogation...')
         if self.include_tw:
-            print('using time windows...')
+            logger.info('using time windows...')
             affinity = 'precomputed'
             # affinity matrix is the negative of distance matrix
             affinity_matrix = -1 * self.compute_spatial_temportal_distance_matrix()
@@ -197,6 +206,6 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
         # So self.num_clusters from the constructor may not be correct,
         # thus assign self.num_clusters to the actual number of clusters
         # found by AP.
-        self.num_clusters = len(ap.cluster_centers_indices_)
+        # self.num_clusters = len(ap.cluster_centers_indices_)
         return self.get_clusters(labels)
 

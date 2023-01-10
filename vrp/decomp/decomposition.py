@@ -21,6 +21,10 @@ from dataclasses import dataclass
 from copy import deepcopy
 from multiprocessing import Pool
 
+from .logger import logger
+
+logger = logger.getChild(__name__)
+
 @dataclass
 class Node:
     """Encapsulates each customer/depot node and its attributes.
@@ -344,7 +348,7 @@ class DecompositionRunner:
 
 
     def _run_solver_on_decomposed_instance(self, decomp_inst, cluster):
-        print(f"Process ID: {os.getpid()}")
+        logger.debug(f"Process ID: {os.getpid()}")
         cost, decomp_routes = self.solver.solve(decomp_inst)
         original_routes = self._map_decomposed_to_original_customer_ids(
             decomp_routes, cluster

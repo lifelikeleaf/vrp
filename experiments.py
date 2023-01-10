@@ -9,6 +9,9 @@ from vrp.decomp.decomposers import KMeansDecomposer, KMedoidsDecomposer, \
     APDecomposer
 from vrp.decomp.solvers import HgsSolverWrapper
 import vrp.decomp.helpers as helpers
+from vrp.decomp.logger import logger
+
+logger = logger.getChild(__name__)
 
 HG = 'Vrp-Set-HG' # n=[200, 1000]
 SOLOMON = 'Vrp-Set-Solomon' # n=100
@@ -68,7 +71,7 @@ if __name__ == "__main__":
     #     inst,
     #     args.num_clusters,
     #     args.include_time_windows,
-    #     use_gap=True,
+    #     # use_gap=True,
     #     # minimize_wait_time=True,
     # )
 
@@ -78,9 +81,10 @@ if __name__ == "__main__":
     start = time.time()
     total_cost, total_routes = runner.run(True, args.num_clusters)
     end = time.time()
-    print('Run time:', end-start)
 
-    print("\n----- Solution -----")
-    print("Total cost: ", total_cost)
+    logger.info(f'Run time = {end-start}')
+
+    logger.info("----- Solution -----")
+    logger.info(f"Total cost: {total_cost}")
     for i, route in enumerate(total_routes):
-        print(f"Route {i}:", route)
+        logger.info(f"Route {i}: \n{route}")
