@@ -78,11 +78,8 @@ if __name__ == "__main__":
     solver = HgsSolverWrapper()
     runner = DecompositionRunner(decomposer, solver)
 
-    start = time.time()
+    # total_cost, total_routes = solver.solve(inst)
     total_cost, total_routes = runner.run(True, args.num_clusters)
-    end = time.time()
-
-    logger.info(f'Run time = {end-start}')
 
     logger.info("----- Solution -----")
     logger.info(f"Total cost: {total_cost}")

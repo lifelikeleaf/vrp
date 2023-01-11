@@ -3,6 +3,7 @@ from wurlitzer import pipes
 
 from .decomposition import AbstractSolverWrapper, VRPInstance
 from .logger import logger
+from . import helpers
 
 logger = logger.getChild(__name__)
 
@@ -53,6 +54,7 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         )
 
 
+    @helpers.log_run_time
     def solve(self, inst: VRPInstance):
         # Calls the HGS solver with default config and passing in a
         # VRP problem instance.

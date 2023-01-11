@@ -150,6 +150,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
 
 class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
+    @helpers.log_run_time
     def decompose(self):
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
@@ -160,6 +161,7 @@ class KMeansDecomposer(BaseDecomposer):
 
 class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
+    @helpers.log_run_time
     def decompose(self):
         logger.info('Running k-medoids...')
         if self.include_tw:
@@ -188,6 +190,7 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
 
 class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
+    @helpers.log_run_time
     def decompose(self):
         logger.info('Running Affinity Propogation...')
         if self.include_tw:
