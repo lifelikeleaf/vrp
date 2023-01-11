@@ -1,3 +1,4 @@
+import argparse
 import math
 import numpy as np
 import time
@@ -8,6 +9,32 @@ import openpyxl as xl
 
 from .decomposition import Node, VRPInstance
 from .logger import logger
+
+
+def get_args_parser(script_name):
+    parser = argparse.ArgumentParser(
+        description="Example usages: "
+            f"python {script_name} -b=1 -n='C206' -k=3 -t | "
+            f"python {script_name} -b=2 -n='C1_2_1' -k=3 -t"
+    )
+
+    parser.add_argument(
+        '-n', '--instance_name', required=True,
+        help='benchmark instance name without file extension, e.g. "C206"'
+    )
+    parser.add_argument(
+        '-b', '--benchmark', default=1, choices=[1, 2], type=int,
+        help='benchmark dataset to use: 1=Solomon (1987), '
+            '2=Homberger and Gehring (1999); Default=1'
+    )
+    parser.add_argument('-k', '--num_clusters', required=True, type=int,
+                        help='number of clusters')
+    parser.add_argument('-t', '--include_time_windows', action='store_true',
+                        help='use time windows for clustering or not')
+
+    args = parser.parse_args()
+    return args
+
 
 def get_min_tours(inst):
     """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
