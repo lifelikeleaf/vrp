@@ -36,14 +36,10 @@ def get_args_parser(script_name):
     return args
 
 
-def get_min_tours(inst):
-    """Returns the minimum number of tours (i.e. vehicles required) for routing the given instance.
-
-    Params:
-    - inst: benchmark instance data in dict format
-    """
+def get_min_tours(demands, capacity):
+    """Get the minimum number of tours (i.e. vehicles required)."""
     # total demand of all customers / vehicle capacity
-    return math.ceil(sum(inst['demands']) / inst['capacity'])
+    return math.ceil(sum(demands) / capacity)
 
 
 def normalize_feature_vectors(fv):
