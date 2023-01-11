@@ -77,7 +77,7 @@ class BaseDecomposer(AbstractDecomposer):
             clusters[labels[i]].append(i + 1)
 
         logger.info(f'Num clusters: {num_clusters}')
-        logger.info(f'Clusters: \n{clusters}')
+        logger.debug(f'Clusters: \n{clusters}')
 
         return clusters
 

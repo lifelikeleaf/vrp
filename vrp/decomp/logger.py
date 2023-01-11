@@ -6,11 +6,11 @@ logger.setLevel(logging.DEBUG)
 # file handler logs to a log file
 # file is created in the same dir where the main module is run
 file_handler = logging.FileHandler('decomp.log')
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.DEBUG)
 
 # console handler logs to the terminal
 console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
+console_handler.setLevel(logging.INFO)
 
 # create formatter and set it on the handlers
 file_formatter = logging.Formatter(

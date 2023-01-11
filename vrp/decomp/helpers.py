@@ -3,6 +3,9 @@ import numpy as np
 import time
 from typing import Callable
 
+import pandas as pd
+import openpyxl as xl
+
 from .decomposition import Node, VRPInstance
 from .logger import logger
 
@@ -92,4 +95,31 @@ def log_run_time(func: Callable):
         return return_val
 
     return decorator
+
+
+def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
+    file_name = file_name + '.xlsx'
+    if_sheet_exists = 'overlay' if overlay else 'replace'
+    start_row = 0
+    header = True
+
+    try:
+        if overlay:
+            # if sheet exists, append to the end of the same sheet
+            # if sheet do not exist, create a new sheet in the excel file
+            wb = xl.load_workbook(file_name)
+            if sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+                # The maximum row index containing data (1-based)
+                # `startrow` param of `pandas.DataFrame.to_excel()` is 0-based
+                # So next row to append to is exactly max_row
+                start_row = sheet.max_row
+                # do not write out the column names again
+                header = False
+        with pd.ExcelWriter(file_name, mode='a', if_sheet_exists=if_sheet_exists) as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False, header=header, startrow=start_row)
+    except FileNotFoundError:
+        # if file does not yet exist, create it
+        with pd.ExcelWriter(file_name, mode='x') as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
 

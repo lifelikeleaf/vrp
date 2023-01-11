@@ -1,6 +1,7 @@
 import os
 import argparse
 import random
+import traceback
 
 import cvrplib
 import pandas as pd
@@ -18,36 +19,23 @@ SOLOMON = 'Vrp-Set-Solomon' # n=100; 56 instances
 HG = 'Vrp-Set-HG' # n=[200, 400, 600, 800, 1000]; 60 instances each
 
 
-def write_to_excel(df: pd.DataFrame, sheet_name, replace=True):
-    file_name = 'output.xlsx'
-    if_sheet_exists = 'overlay' if not replace else 'replace'
-    try:
-        with pd.ExcelWriter(file_name, mode='a', if_sheet_exists=if_sheet_exists) as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-    except FileNotFoundError:
-        with pd.ExcelWriter(file_name, mode='x') as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-
-def run_experiment(benchmarks, num_clusters_range, repeat_n_times):
+def run_experiment(func, benchmarks, num_clusters_range, repeat_n_times, output_file_name):
     for benchmark, size in benchmarks:
-        # prepare data to be written to excel
-        instance_names = benchmark
-
-        bk_costs = []
-        bk_num_routes = []
-        
-        no_decomp_costs = []
-        no_decomp_num_routes = []
-        
-        best_found_costs = []
-        best_found_num_routes = []
-        best_found_num_clusters = []
-
         dir_name = SOLOMON if size == 100 else HG
 
         for instance_name in benchmark:
-            logger.info(f'Benchmark instance name: {instance_name}')
+            # prepare data to be written to excel
+            bk_costs = []
+            bk_num_routes = []
+            
+            no_decomp_costs = []
+            no_decomp_num_routes = []
+            
+            best_found_costs = []
+            best_found_num_routes = []
+            best_found_num_clusters = []
+
+            logger.info(f'\nBenchmark instance name: {instance_name}')
 
             file_name = os.path.join('CVRPLIB', dir_name, instance_name)
             inst, bk_sol = cvrplib.read(
@@ -77,8 +65,8 @@ def run_experiment(benchmarks, num_clusters_range, repeat_n_times):
                 best_found_local['cost'] = float('inf')
 
                 for _ in range(0, repeat_n_times):
-                    # repeat n times bc k-medoids could find diff clusters on each run
-                    cost, routes = k_medoids(inst, num_clusters, include_tw=True)
+                    # repeat n times bc clustering algorithm could find diff clusters on each run
+                    cost, routes = func(inst, num_clusters)
                     if cost < best_found_local['cost']:
                         best_found_local['cost'] = cost
                         best_found_local['routes'] = routes
@@ -96,20 +84,20 @@ def run_experiment(benchmarks, num_clusters_range, repeat_n_times):
             logger.info(f"Best decomp cost: {best_found['cost']} with "
                         f"{best_found['num_clusters']} clusters and {len(best_found['routes'])} routes")
             for i, route in enumerate(best_found['routes']):
-                logger.info(f"Route {i}: \n{route}")
+                logger.debug(f"Route {i}: \n{route}")
 
-        df = pd.DataFrame({
-            'Instance name': instance_names,
-            'Best known cost': bk_costs,
-            'No decomp cost': no_decomp_costs,
-            'Best decomp cost': best_found_costs,
-            'Number of clusters': best_found_num_clusters,
-            'Best known num routes': bk_num_routes,
-            'No decomp num routes': no_decomp_num_routes,
-            'Best decomp num routes': best_found_num_routes,
-        })
-        sheet_name = f'{dir_name}-{size}'
-        write_to_excel(df, sheet_name)
+            df = pd.DataFrame({
+                'Instance name': instance_name,
+                'Best known num routes': bk_num_routes,
+                'No decomp num routes': no_decomp_num_routes,
+                'Best decomp num routes': best_found_num_routes,
+                'Best known cost': bk_costs,
+                'No decomp cost': no_decomp_costs,
+                'Best decomp cost': best_found_costs,
+                'Number of clusters': best_found_num_clusters,
+            })
+            sheet_name = f'{dir_name}-{size}'
+            helpers.write_to_excel(df, output_file_name, sheet_name)
 
 
 def no_decomp(inst):
@@ -133,22 +121,21 @@ def k_medoids(inst, num_clusters, include_tw):
     return runner.run(True, num_clusters)
 
 
-def k_means():
+def k_means(inst, num_clusters):
     # same result with 2 or 3 clusters
     decomposer = KMeansDecomposer(
         inst,
-        args.num_clusters,
-        args.include_time_windows,
+        num_clusters,
     )
 
 
-def ap():
+def ap(inst, num_clusters):
     # had 9 clusters; TODO: control num of clusters?
     # set preference based on k-means++? merge clusters?
     decomposer = APDecomposer(
         inst,
-        args.num_clusters,
-        args.include_time_windows,
+        num_clusters,
+        include_tw=True,
         # use_gap=True,
         # minimize_wait_time=True,
     )
@@ -185,15 +172,26 @@ if __name__ == "__main__":
     # parameters for experiment
     sample_size = 5
     num_clusters_range = (2, 5)
-    repeat_n_times = 3
+    repeat_n_times = 2
+    func = k_medoids
+    file_name = 'k-medoids_tw'
 
-    benchmarks = [(cvrplib.list_names(low=100, high=100, vrp_type='vrptw'), 100)]
-    for instance_size in range(200, 1001, 200):
-        benchmarks.append((cvrplib.list_names(low=instance_size, high=instance_size, vrp_type='vrptw'), instance_size))
-
+    benchmarks = []
+    instance_sizes = [800, 1000] # [100, 200, 400, 600, 800, 1000]
     sample_benchmarks = []
-    for benchmark, size in benchmarks:
+    for size in instance_sizes:
+        benchmark = cvrplib.list_names(low=size, high=size, vrp_type='vrptw')
+        benchmarks.append((benchmark, size))
         sample = random.sample(benchmark, sample_size)
         sample_benchmarks.append((sample, size))
 
-    run_experiment(sample_benchmarks, num_clusters_range, repeat_n_times)
+    # sample_benchmarks = [(['R1_6_1'], 600)]
+    # sample_benchmarks = [(['C101'], 100)]
+
+    try:
+        run_experiment(func, sample_benchmarks, num_clusters_range, repeat_n_times, file_name)
+    except Exception as err:
+        tb_msg = traceback.format_exc()
+        logger.error(tb_msg)
+        raise
+
