@@ -82,6 +82,10 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         if self.cpp_output:
             logger.debug(f'Output from C++: \n {out.read()}')
 
+        if solution is None:
+            # no feasible solution found
+            return 0, []
+
         # return solution
         # for some reason returning solution alone makes solution.routes = []
         return solution.cost, solution.routes
