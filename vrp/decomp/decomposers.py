@@ -1,4 +1,4 @@
-import numpy as np
+from functools import lru_cache
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
 from sklearn.metrics import pairwise_distances
@@ -12,6 +12,16 @@ from .logger import logger
 logger = logger.getChild(__name__)
 
 class BaseDecomposer(AbstractDecomposer):
+
+    class FV():
+        """lru_cache requires function arguments to be hashable.
+        Wrap a feature_vectors list inside a user defined class
+        to make it hashable.
+        """
+        def __init__(self, data: list) -> None:
+            self.data = data
+
+
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
@@ -32,13 +42,15 @@ class BaseDecomposer(AbstractDecomposer):
         # TODO: make sure num_clusters > 0
         self.num_clusters = num_clusters
         self.use_tw = use_tw
-        # a list of feature vectors representing the customer nodes
-        # to be clustered, excluding the depot
-        self.feature_vectors = None
 
 
-    def build_feature_vectors(self, inst):
-        """Build feature vectors for clustering from VRP problem instance."""
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def build_feature_vectors(inst, use_tw) -> FV:
+        """Build feature vectors for clustering from VRP problem instance.
+        A list of feature vectors representing the customer nodes
+        to be clustered, excluding the depot.
+        """
         feature_vectors = []
         nodes = inst.nodes
         for i in range(len(nodes)):
@@ -46,7 +58,7 @@ class BaseDecomposer(AbstractDecomposer):
             # x, y coords for customer i
             row.append(nodes[i].x_coord)
             row.append(nodes[i].y_coord)
-            if self.use_tw:
+            if use_tw:
                 # earliest service start time for customer i
                 row.append(nodes[i].start_time)
                 # lastest service start time for customer i
@@ -55,7 +67,7 @@ class BaseDecomposer(AbstractDecomposer):
 
         # By CVRPLIB convention, index 0 is always depot;
         # depot should not be clustered
-        return np.array(feature_vectors[1:])
+        return __class__.FV(feature_vectors[1:])
 
 
     def get_clusters(self, labels):
@@ -84,6 +96,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         num_clusters=2,
         use_tw=False,
         use_gap=False,
+        allow_neg_dist=False,
         minimize_wait_time=False
     ) -> None:
         """
@@ -110,6 +123,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         super().__init__(num_clusters, use_tw)
         # whether to consider gap b/t time windows for temporal_weight
         self.use_gap = use_gap
+        self.allow_neg_dist = allow_neg_dist
         # whether to minimize waiting time in objective function
         self.minimize_wait_time = minimize_wait_time
 
@@ -160,24 +174,29 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         spatial_temportal_distance = euclidean_dist + temporal_weight
 
         # only non-negative values are valid
-        return max(0, spatial_temportal_distance)
+        # TODO: is this true?
+        if self.allow_neg_dist:
+            return spatial_temportal_distance
+        else:
+            return max(0, spatial_temportal_distance)
 
 
-    def compute_spatial_temportal_distance_matrix(self):
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def compute_spatial_temportal_distance_matrix(feature_vectors, callable):
         # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
-        metric_callable = self.compute_pairwise_spatial_temportal_distance
-        return pairwise_distances(self.feature_vectors, metric=metric_callable)
+        return pairwise_distances(feature_vectors.data, metric=callable)
 
 
 class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     @helpers.log_run_time
     def decompose(self, inst):
-        if self.feature_vectors is None:
-            self.feature_vectors = self.build_feature_vectors(inst)
+        feature_vectors = self.build_feature_vectors(inst, self.use_tw)
+        logger.info('')
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
-        kmeans.fit(self.feature_vectors)
+        kmeans.fit(feature_vectors.data)
         labels = kmeans.labels_
         return self.get_clusters(labels)
 
@@ -186,19 +205,29 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     @helpers.log_run_time
     def decompose(self, inst):
-        if self.feature_vectors is None:
-            self.feature_vectors = self.build_feature_vectors(inst)
+        feature_vectors = self.build_feature_vectors(inst, self.use_tw)
+
+        logger.info('')
         logger.info('Running k-medoids...')
         if self.use_tw:
             logger.info('using time windows...')
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
             metric = 'precomputed'
-            dist_matrix = self.compute_spatial_temportal_distance_matrix()
+            dist_matrix = self.compute_spatial_temportal_distance_matrix(
+                feature_vectors,
+                self.compute_pairwise_spatial_temportal_distance
+            )
             X = dist_matrix
         else:
             metric = 'euclidean' #  or a callable
-            X = self.feature_vectors
+            X = feature_vectors.data
+
+        if self.use_gap:
+            logger.info('and gap...')
+        if self.minimize_wait_time:
+            logger.info('and minimize wait time...')
+
         method = 'pam'
         # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
         init = 'k-medoids++'
@@ -217,18 +246,21 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     @helpers.log_run_time
     def decompose(self, inst):
-        if self.feature_vectors is None:
-            self.feature_vectors = self.build_feature_vectors(inst)
+        feature_vectors = self.build_feature_vectors(inst, self.use_tw)
+        logger.info('')
         logger.info('Running Affinity Propogation...')
         if self.use_tw:
             logger.info('using time windows...')
             affinity = 'precomputed'
             # affinity matrix is the negative of distance matrix
-            affinity_matrix = -1 * self.compute_spatial_temportal_distance_matrix()
+            affinity_matrix = -1 * self.compute_spatial_temportal_distance_matrix(
+                feature_vectors,
+                self.compute_pairwise_spatial_temportal_distance
+            )
             X = affinity_matrix
         else:
             affinity = 'euclidean'
-            X = self.feature_vectors
+            X = feature_vectors.data
         ap = AP(affinity=affinity).fit(X)
         labels = ap.labels_
         # AP doesn't need num_clusters as an initial parameter,

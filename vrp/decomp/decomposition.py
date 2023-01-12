@@ -92,7 +92,20 @@ class Node:
         return distances
 
 
-@dataclass
+"""Objects which are instances of user-defined classes are hashable by default.
+But Data Classes require some special handling.
+
+https://docs.python.org/3/library/dataclasses.html#module-contents
+If eq and frozen are both true, by default dataclass() will
+generate a __hash__() method for you. If eq is true and frozen
+is false, __hash__() will be set to None, marking it unhashable
+(which it is, since it is mutable).
+
+If eq is false, __hash__() will be left untouched meaning the
+__hash__() method of the superclass will be used (if the superclass
+is object, this means it will fall back to id-based hashing).
+"""
+@dataclass(eq=False)
 class VRPInstance:
     """A VRP problem instance representation more intuitive for decomposition.
     Other benchmark instance readers (e.g. cvrplib) tend to represent a VRP
