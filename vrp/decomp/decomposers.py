@@ -15,43 +15,38 @@ class BaseDecomposer(AbstractDecomposer):
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
-    def __init__(self, inst, num_clusters=2, include_tw=False) -> None:
+    def __init__(self, num_clusters=2, use_tw=False) -> None:
         """
-
         Parameters
         ----------
-        inst: `VRPInstance`
-            A VRP problem instance.
-
         Optional:
             num_clusters: int > 0
                 Number of clusters to decompose the VRP problem instance into.
-                Default is 2 - anything less would be equivalent to the orginal
-                problem without decomposition.
-            include_tw: bool
+                Default is 2.
+
+            use_tw: bool
                 True if time windows should be included in features, else False.
                 Default is False.
 
         """
-        super().__init__(inst)
         # TODO: make sure num_clusters > 0
         self.num_clusters = num_clusters
-        self.include_tw = include_tw
+        self.use_tw = use_tw
         # a list of feature vectors representing the customer nodes
         # to be clustered, excluding the depot
-        self.feature_vectors = self.build_feature_vectors()
+        self.feature_vectors = None
 
 
-    def build_feature_vectors(self):
+    def build_feature_vectors(self, inst):
         """Build feature vectors for clustering from VRP problem instance."""
         feature_vectors = []
-        nodes = self.inst.nodes
+        nodes = inst.nodes
         for i in range(len(nodes)):
             row = []
             # x, y coords for customer i
             row.append(nodes[i].x_coord)
             row.append(nodes[i].y_coord)
-            if self.include_tw:
+            if self.use_tw:
                 # earliest service start time for customer i
                 row.append(nodes[i].start_time)
                 # lastest service start time for customer i
@@ -84,9 +79,35 @@ class BaseDecomposer(AbstractDecomposer):
 
 class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
     """Abstract base class for distance matrix based decomposers."""
-    def __init__(self, inst, num_clusters=2, include_tw=False,
-                 use_gap=False, minimize_wait_time=False) -> None:
-        super().__init__(inst, num_clusters, include_tw)
+    def __init__(
+        self,
+        num_clusters=2,
+        use_tw=False,
+        use_gap=False,
+        minimize_wait_time=False
+    ) -> None:
+        """
+        Parameters
+        ----------
+        Optional:
+            num_clusters: int > 0
+                Number of clusters to decompose the VRP problem instance into.
+                Default is 2.
+
+            use_tw: bool
+                True if time windows should be included in features, else False.
+                Default is False.
+            
+            use_gap: bool
+                Whether to consider gap b/t time windows for temporal_weight.
+                Default is False.
+
+            minimize_wait_time: bool
+                Whether to minimize waiting time in objective function.
+                Default is False.
+
+        """
+        super().__init__(num_clusters, use_tw)
         # whether to consider gap b/t time windows for temporal_weight
         self.use_gap = use_gap
         # whether to minimize waiting time in objective function
@@ -151,7 +172,9 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
 class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     @helpers.log_run_time
-    def decompose(self):
+    def decompose(self, inst):
+        if self.feature_vectors is None:
+            self.feature_vectors = self.build_feature_vectors(inst)
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
         kmeans.fit(self.feature_vectors)
@@ -162,9 +185,11 @@ class KMeansDecomposer(BaseDecomposer):
 class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     @helpers.log_run_time
-    def decompose(self):
+    def decompose(self, inst):
+        if self.feature_vectors is None:
+            self.feature_vectors = self.build_feature_vectors(inst)
         logger.info('Running k-medoids...')
-        if self.include_tw:
+        if self.use_tw:
             logger.info('using time windows...')
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
@@ -191,9 +216,11 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
 class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     @helpers.log_run_time
-    def decompose(self):
+    def decompose(self, inst):
+        if self.feature_vectors is None:
+            self.feature_vectors = self.build_feature_vectors(inst)
         logger.info('Running Affinity Propogation...')
-        if self.include_tw:
+        if self.use_tw:
             logger.info('using time windows...')
             affinity = 'precomputed'
             # affinity matrix is the negative of distance matrix

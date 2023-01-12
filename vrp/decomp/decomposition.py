@@ -127,36 +127,6 @@ class AbstractDecomposer(ABC):
     User should extend this class, implement its abstract method `decompose()`
     and pass a concrete decomposer to `DecompositionRunner`.
     """
-    def __init__(self, inst: VRPInstance) -> None:
-        """Constructor that takes at least one required positional argument
-        of type `VRPInstance`.
-        Subclasses that override this constructor should pass in
-        a `VRPInstance` as the first argument and call
-        `super().__init__(inst)`. A reference is kept in `self.inst`.
-        TODO: use descriptor
-
-        Parameters
-        ----------
-        inst: `VRPInstance`
-            A VRP problem instance. Required: subclasses that override this
-            constructor must pass in an `VRPInstance` as the first argument.
-
-        """
-        self._check_type(inst)
-        self._inst = inst
-        self._clusters = None
-
-
-    @property
-    def inst(self):
-        return self._inst
-
-
-    @inst.setter
-    def inst(self, inst: VRPInstance):
-        self._check_type(inst)
-        self._inst = inst
-
 
     @property
     def clusters(self):
@@ -168,16 +138,17 @@ class AbstractDecomposer(ABC):
         self._clusters = clusters
 
 
-    def _check_type(self, inst):
-        if type(inst) is not VRPInstance:
-            raise TypeError(f'Argument must be of type '
-                f'VRPInstance, but got type {type(inst)}.')
-
-
     @abstractmethod
-    def decompose(self):
-        """Decomposition method. Note: the depot should not be considered
-        in the decomposition process.
+    def decompose(self, inst: VRPInstance):
+        """Decomposes the given VRP problem instance. The caller (e.g.
+        `DecompositionRunner`) is responsible for calling this method and
+        passing in the required `inst` object.
+        Note: the depot should not be considered in the decomposition process.
+
+        Parameters
+        ----------
+        inst: `VRPInstance`
+            A VRP problem instance for the decomposer to decompose.
 
         Returns
         -------
@@ -229,13 +200,18 @@ class DecompositionRunner:
     common tasks and delegates custom tasks to the decomposer and solver.
     """
     def __init__(
-        self, decomposer: AbstractDecomposer,
+        self,
+        inst: VRPInstance,
+        decomposer: AbstractDecomposer,
         solver: AbstractSolverWrapper
     ) -> None:
         """Creates a `DecompositionRunner`.
 
         Parameters
         ----------
+        inst: `VRPInstance`
+            A VRP problem instance.
+
         decomposer: a subclass with concrete implementation of
         `AbstractDecomposer`.
             An instance of a concrete subclass of `AbstractDecomposer`.
@@ -245,8 +221,29 @@ class DecompositionRunner:
             An instance of a concrete subclass of `AbstractSolverWrapper`.
 
         """
+        # TODO: use descriptor
+        self.inst = inst
         self.decomposer = decomposer
         self.solver = solver
+
+
+    def _check_type(self, inst):
+        if type(inst) is not VRPInstance:
+            raise TypeError(
+                f'Argument must be of type '
+                f'VRPInstance, but got type {type(inst)}.'
+            )
+
+
+    @property
+    def inst(self):
+        return self._inst
+
+
+    @inst.setter
+    def inst(self, inst: VRPInstance):
+        self._check_type(inst)
+        self._inst = inst
 
 
     def run(self, in_parallel=False, num_workers=1):
@@ -274,7 +271,7 @@ class DecompositionRunner:
             decomposed subproblems.
 
         """
-        self.decomposer.clusters = self.decomposer.decompose()
+        self.decomposer.clusters = self.decomposer.decompose(self.inst)
         if in_parallel:
             # TODO: validate num_workers > 0, is not None
             # potential feature: is num_workers <= 0, use appropriate default
@@ -326,7 +323,7 @@ class DecompositionRunner:
     def _build_decomposed_instance(self, cluster) -> VRPInstance:
         """Build a subproblem instance including only the depot and
         customers present in the `cluster` list."""
-        inst = self.decomposer.inst
+        inst = self.inst
         # create a new VRPInstance and initialize it with the depot included
         depot = 0
         decomp_inst = VRPInstance(
