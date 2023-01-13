@@ -146,3 +146,9 @@ def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
         with pd.ExcelWriter(file_name, mode='x') as writer:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
 
+
+def sleep(sec, logger_name=__name__):
+    log = logger.getChild(logger_name)
+    log.info(f'Sleeping for {sec} sec')
+    time.sleep(sec)
+
