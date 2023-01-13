@@ -55,15 +55,15 @@ def normalize_feature_vectors(fv):
     return norm.tolist()
 
 
-def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
+def convert_cvrplib_to_vrp_instance(instance) -> VRPInstance:
     """Converts a `cvrplib.Instance.VRPTW` object to a
     `decomposition.VRPInstance` object.
-    
+
     Parameters
     ----------
-    benchmark: `cvrplib.Instance.VRPTW`
-        A benchmark VRPTW problem instance returned by `cvrplib.read()`.
-    
+    instance: `cvrplib.Instance.VRPTW`
+        A VRPTW problem instance returned by `cvrplib.read()`.
+
     Returns
     -------
     inst: `decomposition.VRPInstance`
@@ -71,20 +71,20 @@ def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
 
     """
     node_list = []
-    for customer_id in range(len(benchmark.coordinates)):
+    for customer_id in range(len(instance.coordinates)):
         params = dict(
-            x_coord = benchmark.coordinates[customer_id][0],
-            y_coord = benchmark.coordinates[customer_id][1],
-            demand = benchmark.demands[customer_id],
-            distances = benchmark.distances[customer_id],
-            start_time = benchmark.earliest[customer_id],
-            end_time = benchmark.latest[customer_id],
-            service_time = benchmark.service_times[customer_id],
+            x_coord = instance.coordinates[customer_id][0],
+            y_coord = instance.coordinates[customer_id][1],
+            demand = instance.demands[customer_id],
+            distances = instance.distances[customer_id],
+            start_time = instance.earliest[customer_id],
+            end_time = instance.latest[customer_id],
+            service_time = instance.service_times[customer_id],
         )
         node = Node(**params)
         node_list.append(node)
 
-    inst = VRPInstance(node_list, benchmark.capacity)
+    inst = VRPInstance(node_list, instance.capacity, extra={'name': instance.name})
     # Example: how to tag extra data fields to VRPInstance
     # inst.extra = {'num_vehicle': 20, 'distance_limit': 100}
     return inst

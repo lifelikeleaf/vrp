@@ -122,6 +122,7 @@ class VRPInstance:
     nodes: list[Node]
         A list of customer nodes. Also includes the depot.
         By CVRPLIB convention, the depot always has index 0.
+
     vehicle_capacity: int
         Vehicle capcity for a homogeneous fleet.
 
@@ -269,7 +270,7 @@ class DecompositionRunner:
         in_parallel: bool
             Whether to solve the subproblems in parallel. Default is False, i.e.
             solve subproblems sequentially.
-        
+
         num_workers: int
             The number of workers to use for parallel run. Only used if
             `in_parallel=True`. Default is 1, i.e. no parallelism.
@@ -332,7 +333,7 @@ class DecompositionRunner:
 
         return total_cost, total_routes
 
-    
+
     def _build_decomposed_instance(self, cluster) -> VRPInstance:
         """Build a subproblem instance including only the depot and
         customers present in the `cluster` list."""
@@ -376,7 +377,7 @@ class DecompositionRunner:
             contain the depot, but the subproblem does.
             e.g. customer with id = 3 in the subproblem
             is the customer with id = cluster[2] in the original problem
-            
+
             subproblem nodes:          [0   1   2   3   4]
             (0 is depot)
 
