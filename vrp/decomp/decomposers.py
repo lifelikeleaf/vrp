@@ -25,7 +25,7 @@ class BaseDecomposer(AbstractDecomposer):
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
-    def __init__(self, num_clusters=2, use_tw=False) -> None:
+    def __init__(self, num_clusters=2, use_tw=False, normalize=False) -> None:
         """
         Parameters
         ----------
@@ -38,15 +38,20 @@ class BaseDecomposer(AbstractDecomposer):
                 True if time windows should be included in features, else False.
                 Default is False.
 
+            normalize: bool
+                True if feature vectors should be z standardized, else False.
+                Default is False.
+
         """
         # TODO: make sure num_clusters > 0
         self.num_clusters = num_clusters
         self.use_tw = use_tw
+        self.normalize = normalize
 
 
     @staticmethod
     @lru_cache(maxsize=1)
-    def build_feature_vectors(inst, use_tw) -> FV:
+    def build_feature_vectors(inst, use_tw, normalize) -> FV:
         """Build feature vectors for clustering from VRP problem instance.
         A list of feature vectors representing the customer nodes
         to be clustered, excluding the depot.
@@ -64,6 +69,9 @@ class BaseDecomposer(AbstractDecomposer):
                 # lastest service start time for customer i
                 row.append(nodes[i].end_time)
             feature_vectors.append(row)
+
+        if normalize:
+            feature_vectors = helpers.normalize_feature_vectors(feature_vectors)
 
         # By CVRPLIB convention, index 0 is always depot;
         # depot should not be clustered
@@ -95,22 +103,14 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         self,
         num_clusters=2,
         use_tw=False,
+        normalize=False,
         use_gap=False,
-        allow_neg_dist=False,
         minimize_wait_time=False
     ) -> None:
         """
         Parameters
         ----------
         Optional:
-            num_clusters: int > 0
-                Number of clusters to decompose the VRP problem instance into.
-                Default is 2.
-
-            use_tw: bool
-                True if time windows should be included in features, else False.
-                Default is False.
-            
             use_gap: bool
                 Whether to consider gap b/t time windows for temporal_weight.
                 Default is False.
@@ -120,10 +120,9 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
                 Default is False.
 
         """
-        super().__init__(num_clusters, use_tw)
+        super().__init__(num_clusters, use_tw, normalize)
         # whether to consider gap b/t time windows for temporal_weight
         self.use_gap = use_gap
-        self.allow_neg_dist = allow_neg_dist
         # whether to minimize waiting time in objective function
         self.minimize_wait_time = minimize_wait_time
 
@@ -151,7 +150,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         if overlap_or_gap >= 0:
             # there's a time window overlap between these 2 nodes
             overlap = overlap_or_gap
-            temporal_weight = (euclidean_dist / max_tw_width) * overlap
+            temporal_weight = helpers.safe_divide(euclidean_dist, max_tw_width) * overlap
         elif self.use_gap:
             # there's a time window gap between these 2 nodes
             assert overlap_or_gap < 0
@@ -169,16 +168,14 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
                 # so take its absolute value will increase
                 # spatial_temportal_distance
                 gap = abs(gap)
-            temporal_weight = (1 / euclidean_dist) * gap
+            temporal_weight = helpers.safe_divide(1, euclidean_dist) * gap
 
         spatial_temportal_distance = euclidean_dist + temporal_weight
 
         # only non-negative values are valid
-        # TODO: is this true?
-        if self.allow_neg_dist:
-            return spatial_temportal_distance
-        else:
-            return max(0, spatial_temportal_distance)
+        # Precomputed distances need to have non-negative values,
+        # else pairwise_distances() throws ValueError
+        return max(0, spatial_temportal_distance)
 
 
     @staticmethod

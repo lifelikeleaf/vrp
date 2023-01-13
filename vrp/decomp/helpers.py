@@ -52,7 +52,7 @@ def normalize_feature_vectors(fv):
     # set ddof=0 for population std
     std = np.std(fv, axis=0, ddof=1)
     norm = (fv - mean) / std
-    return norm
+    return norm.tolist()
 
 
 def convert_cvrplib_to_vrp_instance(benchmark) -> VRPInstance:
@@ -151,4 +151,9 @@ def sleep(sec, logger_name=__name__):
     log = logger.getChild(logger_name)
     log.info(f'Sleeping for {sec} sec')
     time.sleep(sec)
+
+
+def safe_divide(numerator, denominator):
+    # prevent ZeroDivisionError by returning 0 if denominator is 0
+    return numerator / denominator if denominator else 0
 
