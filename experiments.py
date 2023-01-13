@@ -83,7 +83,7 @@ class ExperimentRunner:
         return best_found
 
 
-    def get_decomp_best_found(self, experiment_name):
+    def get_decomp_best_found(self, instance_name, experiment_name):
         cost_key = f'cost_{experiment_name}'
         num_routes_key = f'num_routes_{experiment_name}'
         num_subprobs_key = f'num_subprobs_{experiment_name}'
@@ -99,11 +99,16 @@ class ExperimentRunner:
             logger.debug(f"Route {i}: \n{route}")
         logger.info('')
 
-        return {
+        excel_data = {
+            'instance_name': [instance_name],
             num_subprobs_key: best_found['num_clusters'],
             num_routes_key: len(best_found['routes']),
             cost_key: best_found['cost'],
         }
+        df = pd.DataFrame(excel_data)
+        helpers.write_to_excel(df, self.output_file_name, experiment_name)
+
+        return excel_data
 
 
     def run_experiments(self, inst):
@@ -117,7 +122,7 @@ class ExperimentRunner:
                 self.decomp_runner.inst = inst
                 self.decomp_runner.decomposer = experiment.decomposer
 
-            experiment_data.append(self.get_decomp_best_found(experiment.name))
+            experiment_data.append(self.get_decomp_best_found(inst.extra['name'], experiment.name))
 
         return experiment_data
 
@@ -153,30 +158,31 @@ class ExperimentRunner:
 
             for instance_name in benchmark:
                 inst, bk_sol = self.read_instance(dir_name, instance_name)
-
                 converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
-
                 no_decomp_cost, no_decomp_routes = self.get_no_decomp_solution(converted_inst)
-
-                # run all the decomposition experiments on current VRP instance
-                decomp_data = self.run_experiments(converted_inst)
 
                 # prepare data to be written to excel
                 excel_data = {
-                    '0_instance_name': [instance_name],
+                    'instance_name': [instance_name],
                     'num_routes_BK': [len(bk_sol.routes)],
-                    'cost_BK': [bk_sol.cost],
                     'num_routes_NO_decomp': [len(no_decomp_routes)],
+                    'cost_BK': [bk_sol.cost],
                     'cost_NO_decomp': [no_decomp_cost],
                 }
 
-                for data in decomp_data:
-                    excel_data.update(data)
+                # for data in decomp_data:
+                #     excel_data.update(data)
 
+                # write base reference data to excel in its own tab
+                # subsequently each experiment will also write its output
+                # in its own tab - one tab per experiment, one row per instance
                 df = pd.DataFrame(excel_data)
-                df = df.reindex(sorted(df.columns), axis=1)
-                sheet_name = f'{dir_name}-{size}'
-                helpers.write_to_excel(df, self.output_file_name, sheet_name)
+                # df = df.reindex(sorted(df.columns), axis=1)
+                # sheet_name = f'{dir_name}-{size}'
+                helpers.write_to_excel(df, self.output_file_name, 'Basis')
+
+                # run all the decomposition experiments on current VRP instance
+                decomp_data = self.run_experiments(converted_inst)
 
 
 if __name__ == "__main__":
@@ -198,10 +204,18 @@ if __name__ == "__main__":
     # run on a deterministic set of instances rather than a random sample
     # so that new experiments can be compared to old ones w/o rerunning old ones
     # focus on the 1k nodes benchmark where decomp is important
+
+    ## geographically clustered
+    ## narrow TWs
     C1_10 = ['C1_10_1', 'C1_10_2', 'C1_10_3', 'C1_10_4', 'C1_10_5', 'C1_10_6', 'C1_10_7', 'C1_10_8', 'C1_10_9', 'C1_10_10']
+    ## wide TWs
     C2_10 = ['C2_10_1', 'C2_10_2', 'C2_10_3', 'C2_10_4', 'C2_10_5', 'C2_10_6', 'C2_10_7', 'C2_10_8', 'C2_10_9', 'C2_10_10']
+
+    ## randomly distributed
     R1_10 = ['R1_10_1', 'R1_10_2', 'R1_10_3', 'R1_10_4', 'R1_10_5', 'R1_10_6', 'R1_10_7', 'R1_10_8', 'R1_10_9', 'R1_10_10']
     R2_10 = ['R2_10_1', 'R2_10_2', 'R2_10_3', 'R2_10_4', 'R2_10_5', 'R2_10_6', 'R2_10_7', 'R2_10_8', 'R2_10_9', 'R2_10_10']
+
+    ## mixed
     RC1_10 = ['RC1_10_1', 'RC1_10_2', 'RC1_10_3', 'RC1_10_4', 'RC1_10_5', 'RC1_10_6', 'RC1_10_7', 'RC1_10_8', 'RC1_10_9', 'RC1_10_10']
     RC2_10 = ['RC2_10_1', 'RC2_10_2', 'RC2_10_3', 'RC2_10_4', 'RC2_10_5', 'RC2_10_6', 'RC2_10_7', 'RC2_10_8', 'RC2_10_9', 'RC2_10_10']
 
@@ -232,7 +246,7 @@ if __name__ == "__main__":
     time_limit = 10
     experiments = k_medoids
     file_name = experiments.__name__
-    
+
     # sample_size = 10
     # instance_sizes = [100, 200, 400, 600, 800, 1000]
 
