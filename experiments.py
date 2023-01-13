@@ -1,7 +1,6 @@
 import os
 import random
 import traceback
-import time
 
 import cvrplib
 import pandas as pd
@@ -61,6 +60,9 @@ class ExperimentRunner:
                 best_found_local['routes'] = routes
                 best_found_local['num_clusters'] = num_clusters
 
+            # let the CPU take a break
+            helpers.sleep(3, __name__)
+
         return best_found_local
 
 
@@ -82,9 +84,9 @@ class ExperimentRunner:
 
 
     def get_decomp_best_found(self, experiment_name):
-        cost_key = f'1_{experiment_name}_cost'
-        num_routes_key = f'2_{experiment_name}_num_routes'
-        num_clusters_key = f'3_{experiment_name}_num_clusters'
+        cost_key = f'cost_{experiment_name}'
+        num_routes_key = f'num_routes_{experiment_name}'
+        num_subprobs_key = f'num_subprobs_{experiment_name}'
 
         best_found = self.run_clusters_range()
 
@@ -98,7 +100,7 @@ class ExperimentRunner:
         logger.info('')
 
         return {
-            num_clusters_key: best_found['num_clusters'],
+            num_subprobs_key: best_found['num_clusters'],
             num_routes_key: len(best_found['routes']),
             cost_key: best_found['cost'],
         }
@@ -117,11 +119,6 @@ class ExperimentRunner:
 
             experiment_data.append(self.get_decomp_best_found(experiment.name))
 
-            # let the CPU take a break after each experiment
-            sec = 3
-            logger.info(f'Sleeping for {sec} sec after each experiment')
-            time.sleep(sec)
-        
         return experiment_data
 
 
@@ -167,10 +164,10 @@ class ExperimentRunner:
                 # prepare data to be written to excel
                 excel_data = {
                     '0_instance_name': [instance_name],
-                    '2_best_known_num_routes': [len(bk_sol.routes)],
-                    '1_best_known_cost': [bk_sol.cost],
-                    '2_no_decomp_num_routes': [len(no_decomp_routes)],
-                    '1_no_decomp_cost': [no_decomp_cost],
+                    'num_routes_BK': [len(bk_sol.routes)],
+                    'cost_BK': [bk_sol.cost],
+                    'num_routes_NO_decomp': [len(no_decomp_routes)],
+                    'cost_NO_decomp': [no_decomp_cost],
                 }
 
                 for data in decomp_data:
@@ -186,40 +183,67 @@ if __name__ == "__main__":
     # args = helpers.get_args_parser(os.path.basename(__file__))
 
 
+    def sample_benchmarks(sample_size, instance_sizes):
+        # benchmarks = []
+        sample_benchmarks = []
+        for size in instance_sizes:
+            benchmark = cvrplib.list_names(low=size, high=size, vrp_type='vrptw')
+            # benchmarks.append((benchmark, size))
+            sample = random.sample(benchmark, sample_size)
+            sample_benchmarks.append((sample, size))
+
+        return sample_benchmarks
+
+
+    # run on a deterministic set of instances rather than a random sample
+    # so that new experiments can be compared to old ones w/o rerunning old ones
+    # focus on the 1k nodes benchmark where decomp is important
+    C1_10 = ['C1_10_1', 'C1_10_2', 'C1_10_3', 'C1_10_4', 'C1_10_5', 'C1_10_6', 'C1_10_7', 'C1_10_8', 'C1_10_9', 'C1_10_10']
+    C2_10 = ['C2_10_1', 'C2_10_2', 'C2_10_3', 'C2_10_4', 'C2_10_5', 'C2_10_6', 'C2_10_7', 'C2_10_8', 'C2_10_9', 'C2_10_10']
+    R1_10 = ['R1_10_1', 'R1_10_2', 'R1_10_3', 'R1_10_4', 'R1_10_5', 'R1_10_6', 'R1_10_7', 'R1_10_8', 'R1_10_9', 'R1_10_10']
+    R2_10 = ['R2_10_1', 'R2_10_2', 'R2_10_3', 'R2_10_4', 'R2_10_5', 'R2_10_6', 'R2_10_7', 'R2_10_8', 'R2_10_9', 'R2_10_10']
+    RC1_10 = ['RC1_10_1', 'RC1_10_2', 'RC1_10_3', 'RC1_10_4', 'RC1_10_5', 'RC1_10_6', 'RC1_10_7', 'RC1_10_8', 'RC1_10_9', 'RC1_10_10']
+    RC2_10 = ['RC2_10_1', 'RC2_10_2', 'RC2_10_3', 'RC2_10_4', 'RC2_10_5', 'RC2_10_6', 'RC2_10_7', 'RC2_10_8', 'RC2_10_9', 'RC2_10_10']
+
+
     def k_medoids():
+        # for each instance, run a set of experiments
+        # each experiment is a diff way to decompose the instance
+        # the best found solution is over a range of num_clusters and repeated n times
         experiments = []
-        prefix = '' #file_name
-        experiments.append(Experiment(f'{prefix}_euclidean', KMedoidsDecomposer()))
-        experiments.append(Experiment(f'{prefix}_TW', KMedoidsDecomposer(use_tw=True)))
-        experiments.append(Experiment(f'{prefix}_TW_Neg', KMedoidsDecomposer(use_tw=True, allow_neg_dist=True)))
-        experiments.append(Experiment(f'{prefix}_TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
+        experiments.append(Experiment('euclidean', KMedoidsDecomposer()))
+        experiments.append(Experiment('TW', KMedoidsDecomposer(use_tw=True)))
+        # gap by default is negative
+        experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
+        # what if gap is always positive by turning on min wait time, even though wait time is not yet included in OF
+        experiments.append(Experiment('TW_Pos_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True)))
+
+        # normalized version of above
+        experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
+        experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
+        experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
+        experiments.append(Experiment('TW_Pos_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True)))
         return experiments
 
 
-    ### parameters for experiments
-    sample_size = 2
-    num_clusters_range = (6, 6) # inclusive
+    '''parameters for experiments'''
+    num_clusters_range = (2, 5) # inclusive
     repeat_n_times = 1
-    instance_sizes = [600] # [100, 200, 400, 600, 800, 1000]
-    time_limit = 5
+    time_limit = 10
     experiments = k_medoids
     file_name = experiments.__name__
-    ### parameters for experiments
+    
+    # sample_size = 10
+    # instance_sizes = [100, 200, 400, 600, 800, 1000]
 
+    # benchmarks = [(['C101'], 100)]
+    # benchmarks = sample_benchmarks(sample_size, instance_sizes)
+    benchmarks = [(C1_10, 1000)]
+    '''parameters for experiments'''
 
-    benchmarks = []
-    sample_benchmarks = []
-    for size in instance_sizes:
-        benchmark = cvrplib.list_names(low=size, high=size, vrp_type='vrptw')
-        benchmarks.append((benchmark, size))
-        sample = random.sample(benchmark, sample_size)
-        sample_benchmarks.append((sample, size))
-
-    # sample_benchmarks = [(['R1_6_1'], 600)]
-    # sample_benchmarks = [(['C101'], 100)]
 
     solver = HgsSolverWrapper(time_limit)
-    runner = ExperimentRunner(solver, sample_benchmarks, num_clusters_range, repeat_n_times, file_name)
+    runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name)
     runner.add_experiements(experiments())
 
     try:
