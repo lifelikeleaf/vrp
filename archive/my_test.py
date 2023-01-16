@@ -14,7 +14,9 @@ from vrp.third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
 instance_name = 'ORTEC-VRPTW-ASYM-0bdff870-d1-n458-k35' #'ORTEC-VRPTW-ASYM-1bdf25a7-d1-n531-k43'
-instance = tools.read_vrplib(os.path.join(PARENT_DIR, 'vrp/third_party/solver/hgs/instances', f'{instance_name}.txt'))
+path = os.path.join(PARENT_DIR, 'vrp/third_party/solver/hgs/instances', f'{instance_name}.txt')
+instance = tools.read_vrplib(path)
+
 x = {
     k: v.shape if isinstance(v, np.ndarray) else None
     for k, v in instance.items()
@@ -43,8 +45,8 @@ with pipes() as (out, err):
         #useDynamicParameters=True)
 
     # Convert instance so it is suitable for HGS and define params object
-    ## C++/Python bindings defined in hgs/baselines/hgs_vrptw/src/bindings.cpp
-    ## actual C++ implementation in Params.cpp
+    'C++/Python bindings defined in hgs/baselines/hgs_vrptw/src/bindings.cpp'
+    'actual C++ implementation in Params.cpp'
     ## tools.inst_to_vars(instance) converts dict of numpy objects obtained from tools.read_vrplib
     ## to a dict of standard python list objects, which are passed in to Params as kwargs
     params = hgspy.Params(config, **tools.inst_to_vars(instance))
@@ -57,21 +59,40 @@ with pipes() as (out, err):
     algo.run()
     best = pop.getBestFound()
 
-print(f'Output from C++: \n {out.read()}')
+# print(f'Output from C++: \n {out.read()}')
 
-print(type(best))
 
 # Avoid mixing up cpp and python output
 ## flush any buffered output from cpp (in Population.cpp) and print to stdout/terminal
 ## before printing the following solution output in python
 # sys.stdout.flush() # not needed when using wurlitzer to capture C-level output
+
 print("\n----- Solution -----")
 # Print cost and routes of best solution
 print("Cost: ", best.cost) # best.cost == driving_time
 driving_time = tools.compute_solution_driving_time(instance, best.routes)
-# see tools.validate_route_time_windows() for how to include waiting time: line 138
-# also see struct CostSol in hgs/baselines/hgs_vrptw/include/Individual.h
+'''
+see tools.validate_route_time_windows() for how to include waiting time (line 138)
+validate_static_solution
+- validate_all_customers_visited
+- validate_route_capacity
+- validate_route_time_windows
+
+also see `struct CostSol` in hgs/baselines/hgs_vrptw/include/Individual.h
+- hgs/baselines/hgs_vrptw/src/bindings.cpp (line 203)
+// added by Leif
+.def_property_readonly("distance", [](Individual &indiv) { return indiv.myCostSol.distance; })
+.def_property_readonly("waitTime", [](Individual &indiv) { return indiv.myCostSol.waitTime; })
+// added by Leif
+'''
 print("Driving time excluding waiting time: ", driving_time)
-for i, route in enumerate(best.routes):
-    print(f"Route {i}:", route)
+validated_driving_time = tools.validate_static_solution(instance, best.routes)
+print("Validated driving time excluding waiting time: ", validated_driving_time)
+
+print(type(best)) # <class 'hgspy.Individual'>
+print('distance:', best.distance)
+print('wait time:', best.waitTime)
+
+# for i, route in enumerate(best.routes):
+#     print(f"Route {i}:", route)
 
