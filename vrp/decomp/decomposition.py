@@ -20,10 +20,17 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from copy import deepcopy
 from multiprocessing import Pool
+from typing import Union
 
 from .logger import logger
 
 logger = logger.getChild(__name__)
+
+# type aliases
+Route = list[int]
+Number = Union[int, float]
+Cluster = list[int]
+
 
 @dataclass
 class Node:
@@ -136,6 +143,26 @@ class VRPInstance:
     extra: dict = None
 
 
+@dataclass
+class VRPSolution:
+    """
+    Parameters
+    ----------
+    routes: list[Route]
+        A list of routes.
+
+    metrics: dict[str, Number]
+        A dict of aggregatable metrics, e.g. cost, wait time.
+
+    Optional:
+        extra: dict
+            A dict of additional data fields to include.
+    """
+    routes: list[Route]
+    metrics: dict[str, Number]
+    extra: dict = None
+
+
 class AbstractDecomposer(ABC):
     """Abstract base class that provides an interface for a `Decomposer`.
     User should extend this class, implement its abstract method `decompose()`
@@ -153,7 +180,7 @@ class AbstractDecomposer(ABC):
 
 
     @abstractmethod
-    def decompose(self, inst: VRPInstance):
+    def decompose(self, inst: VRPInstance) -> list[Cluster]:
         """Decomposes the given VRP problem instance. The caller (e.g.
         `DecompositionRunner`) is responsible for calling this method and
         passing in the required `inst` object.
@@ -166,7 +193,7 @@ class AbstractDecomposer(ABC):
 
         Returns
         -------
-        clusters: list[list[int]]
+        clusters: list[Cluster]
             A list of clustered customer IDs. Note: clusters should never
             include the depot.
 
@@ -185,7 +212,7 @@ class AbstractSolverWrapper(ABC):
     and pass a concrete solver to `DecompositionRunner`.
     """
     @abstractmethod
-    def solve(self, inst: VRPInstance):
+    def solve(self, inst: VRPInstance) -> VRPSolution:
         """Solves the given VRP problem instance. The caller (e.g.
         `DecompositionRunner`) is responsible for calling this method and
         passing in the required `inst` object.
@@ -199,11 +226,9 @@ class AbstractSolverWrapper(ABC):
 
         Returns
         -------
-        cost: float
-            Cost of the best found solution.
-
-        routes: list[list[int]]
-            Routes of the best found solution.
+        solution: `VRPSolution`
+            A VRP solution object containing routes, aggregatable metrics
+            (e.g. cost, wait time) and optional extra data.
 
         """
         pass
@@ -260,7 +285,7 @@ class DecompositionRunner:
         self._inst = inst
 
 
-    def run(self, in_parallel=False, num_workers=1):
+    def run(self, in_parallel=False, num_workers=1) -> VRPSolution:
         """Solves the VRP problem by first decomposing it into smaller
         subproblems, then solving each subproblem independently, and finally
         returning the combined results.
@@ -277,12 +302,9 @@ class DecompositionRunner:
 
         Returns
         -------
-        total_cost: float
-            Total cost of the original VRP problem, i.e. combined cost of
-            decomposed subproblems.
-        total_routes: list[list[int]]
-            Routes for the original VRP problem, i.e. combined routes of
-            decomposed subproblems.
+        solution: `VRPSolution`
+            A VRP solution object containing routes, aggregatable metrics
+            (e.g. cost, wait time) and optional extra data.
 
         """
         self.decomposer.clusters = self.decomposer.decompose(self.inst)
@@ -294,19 +316,28 @@ class DecompositionRunner:
             return self._run_solver_sequential()
 
 
+    def _aggregate(self, solution, total_routes, total_metrics):
+        for key, val in solution.metrics.items():
+            if key in total_metrics:
+                total_metrics[key] += val
+            else:
+                total_metrics[key] = val
+
+        total_routes.extend(solution.routes)
+
+
     def _run_solver_sequential(self):
         """Run solver on decomposed subproblems sequentially."""
-        total_cost = 0
+        total_metrics = {}
         total_routes = []
         for cluster in self.decomposer.clusters:
             decomp_inst = self._build_decomposed_instance(cluster)
-            cost, routes = \
+            solution = \
                 self._run_solver_on_decomposed_instance(decomp_inst, cluster)
 
-            total_cost += cost
-            total_routes.extend(routes)
+            self._aggregate(solution, total_routes, total_metrics)
 
-        return total_cost, total_routes
+        return VRPSolution(total_routes, total_metrics)
 
 
     def _run_solver_parallel(self, num_workers):
@@ -325,13 +356,12 @@ class DecompositionRunner:
                 list(zip(decomp_inst_list, self.decomposer.clusters))
             )
 
-        total_cost = 0
         total_routes = []
-        for cost, routes in results:
-            total_cost += cost
-            total_routes.extend(routes)
+        total_metrics = {}
+        for solution in results:
+            self._aggregate(solution, total_routes, total_metrics)
 
-        return total_cost, total_routes
+        return VRPSolution(total_routes, total_metrics)
 
 
     def _build_decomposed_instance(self, cluster) -> VRPInstance:
@@ -360,11 +390,12 @@ class DecompositionRunner:
 
     def _run_solver_on_decomposed_instance(self, decomp_inst, cluster):
         logger.debug(f"Process ID: {os.getpid()}")
-        cost, decomp_routes = self.solver.solve(decomp_inst)
+        solution = self.solver.solve(decomp_inst)
         original_routes = self._map_decomposed_to_original_customer_ids(
-            decomp_routes, cluster
+            solution.routes, cluster
         )
-        return cost, original_routes
+        solution.routes = original_routes
+        return solution
 
 
     def _map_decomposed_to_original_customer_ids(self, decomp_routes, cluster):

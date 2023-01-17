@@ -53,11 +53,16 @@ class ExperimentRunner:
         # repeat n times bc clustering algorithm may find diff clusters on each run
         for _ in range(0, self.repeat_n_times):
             self.decomp_runner.decomposer.num_clusters = num_clusters
-            cost, routes = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
+            solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
+            if 'cost' in solution.metrics:
+                cost = solution.metrics['cost']
+            else:
+                cost = 0
 
+            # TODO: write/log all results, not just best found
             if cost < best_found_local['cost']:
                 best_found_local['cost'] = cost
-                best_found_local['routes'] = routes
+                best_found_local['routes'] = solution.routes
                 best_found_local['num_clusters'] = num_clusters
 
             # let the CPU take a break
@@ -147,9 +152,13 @@ class ExperimentRunner:
     def get_no_decomp_solution(self, inst):
         # call solver directly without decomposition
         logger.info('')
-        no_decomp_cost, no_decomp_routes = self.solver.solve(inst)
-        logger.info(f'No decomp cost: {no_decomp_cost} with {len(no_decomp_routes)} routes')
-        return no_decomp_cost, no_decomp_routes
+        solution = self.solver.solve(inst)
+        if 'cost' in solution.metrics:
+            cost = solution.metrics['cost']
+        else:
+            cost = 0
+        logger.info(f'No decomp cost: {cost} with {len(solution.routes)} routes')
+        return cost, solution.routes
 
 
     def run(self):
@@ -227,32 +236,32 @@ if __name__ == "__main__":
         experiments = []
         experiments.append(Experiment('euclidean', KMedoidsDecomposer()))
         experiments.append(Experiment('TW', KMedoidsDecomposer(use_tw=True)))
-        # gap by default is negative
-        experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
-        # what if gap is always positive by turning on min wait time, even though wait time is not yet included in OF
-        experiments.append(Experiment('TW_Pos_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True)))
+        # # gap by default is negative
+        # experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
+        # # what if gap is always positive by turning on min wait time, even though wait time is not yet included in OF
+        # experiments.append(Experiment('TW_Pos_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True)))
 
-        # normalized version of above
-        experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
-        experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
-        experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
-        experiments.append(Experiment('TW_Pos_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True)))
+        # # normalized version of above
+        # experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
+        # experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
+        # experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
+        # experiments.append(Experiment('TW_Pos_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True)))
         return experiments
 
 
     '''parameters for experiments'''
-    num_clusters_range = (2, 5) # inclusive
+    num_clusters_range = (3, 3) # inclusive
     repeat_n_times = 1
-    time_limit = 10
+    time_limit = 5
     experiments = k_medoids
     file_name = experiments.__name__
 
     # sample_size = 10
     # instance_sizes = [100, 200, 400, 600, 800, 1000]
 
-    # benchmarks = [(['C101'], 100)]
+    benchmarks = [(['C101'], 100)]
     # benchmarks = sample_benchmarks(sample_size, instance_sizes)
-    benchmarks = [(C1_10, 1000)]
+    # benchmarks = [(C1_10, 1000)]
     '''parameters for experiments'''
 
 

@@ -1,7 +1,7 @@
 from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from wurlitzer import pipes
 
-from .decomposition import AbstractSolverWrapper, VRPInstance
+from .decomposition import AbstractSolverWrapper, VRPInstance, VRPSolution
 from .logger import logger
 from . import helpers
 
@@ -84,9 +84,17 @@ class HgsSolverWrapper(AbstractSolverWrapper):
 
         if solution is None:
             # no feasible solution found
-            return 0, []
+            sol = VRPSolution([], {})
+            return sol
 
         # return solution
-        # for some reason returning solution alone makes solution.routes = []
-        return solution.cost, solution.routes
+        # returning solution object alone makes solution.routes = []
+        # see bindings.cpp
+        metrics = {
+            'cost': solution.cost,
+            'distance': solution.distance,
+            'wait_time': solution.waitTime,
+        }
+        sol = VRPSolution(solution.routes, metrics)
+        return sol
 
