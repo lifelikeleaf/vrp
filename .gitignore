@@ -3,6 +3,7 @@
 __pycache__/
 hgs/
 *.xlsx
+*.json
 
 # Built application files
 *.apk

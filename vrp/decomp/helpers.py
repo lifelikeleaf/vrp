@@ -3,6 +3,7 @@ import math
 import numpy as np
 import time
 from typing import Callable
+import json
 
 import pandas as pd
 import openpyxl as xl
@@ -145,6 +146,26 @@ def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
         # if file does not yet exist, create it
         with pd.ExcelWriter(file_name, mode='x') as writer:
             df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+
+def write_to_json(data, file_name):
+    file_name = file_name + '.json'
+    with open(file_name, 'a') as f:
+        json.dump(data, f) #, indent=4)
+        f.write('\n')
+
+
+def read_json(file_name):
+    file_name = file_name + '.json'
+    data = []
+    # reading a file with multiple json objects must read 1 line/1 json object
+    # at a time, bc json.load() can only handle a single json object
+    with open(file_name) as f:
+        for line in f:
+            py_obj = json.loads(line)
+            data.append(py_obj)
+
+    return data
 
 
 def sleep(sec, logger_name=__name__):
