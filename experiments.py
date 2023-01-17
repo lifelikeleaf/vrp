@@ -54,12 +54,11 @@ class ExperimentRunner:
         for _ in range(0, self.repeat_n_times):
             self.decomp_runner.decomposer.num_clusters = num_clusters
             solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
-            if 'cost' in solution.metrics:
-                cost = solution.metrics['cost']
-            else:
-                cost = 0
+            cost = solution.metrics['cost']
 
-            # TODO: write/log all results, not just best found
+            # only tracking best found may not be a good idea
+            # bc cost could be 0 if no feasible soution found
+            # which would become the "best found solution"
             if cost < best_found_local['cost']:
                 best_found_local['cost'] = cost
                 best_found_local['routes'] = solution.routes
@@ -116,8 +115,59 @@ class ExperimentRunner:
         return excel_data
 
 
+    def get_all_decomp(self, instance_name, experiment_name):
+        '''write/log all results, not just best found'''
+
+        logger.info('')
+        exp_header = 'Running experiment: ' + experiment_name
+        logger.info(f"--------------- {exp_header} ---------------")
+
+        cost_key = f'cost_{experiment_name}'
+        cost_wait_key = f'cost_wait_{experiment_name}'
+        num_routes_key = f'num_routes_{experiment_name}'
+
+        # try clustering with diff number of clusters
+        min_clusters, max_clusters = self.num_clusters_range
+        for num_clusters in range(min_clusters, max_clusters + 1):
+            # repeat n times bc clustering algorithm may find diff clusters on each run
+            for i in range(self.repeat_n_times):
+                self.decomp_runner.decomposer.num_clusters = num_clusters
+                solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
+                cost = solution.metrics['cost']
+                cost_wait = cost + solution.metrics['wait_time']
+                routes = solution.routes
+
+                sol_header = 'Solution for experiment: ' + experiment_name
+                logger.info(f"------ {sol_header} ------")
+                logger.info(f"Decomp cost: {cost} (include wait time cost: {cost_wait}) with "
+                            f"{num_clusters} clusters and {len(routes)} routes")
+                logger.info('')
+
+                # write KPIs to excel
+                excel_data = {
+                    'instance_name': [instance_name],
+                    'iteration': [i],
+                    'num_subprobs': [num_clusters],
+                    num_routes_key: [len(routes)],
+                    cost_key: [cost],
+                    cost_wait_key: [cost_wait],
+                }
+                df = pd.DataFrame(excel_data)
+                helpers.write_to_excel(df, self.output_file_name, experiment_name)
+
+                # write detailed routes to json
+                # routes_key = f'{instance_name}_{experiment_name}_{num_clusters}_{i}'
+                json_data = {
+                    'instance_name': instance_name,
+                    'experiment_name': experiment_name,
+                    'num_subprobs': num_clusters,
+                    'iteration': i,
+                    'routes': routes,
+                }
+                helpers.write_to_json(json_data, self.output_file_name)
+
+
     def run_experiments(self, inst):
-        experiment_data = []
         for experiment in self.experiments:
             if self.decomp_runner is None:
                 self.decomp_runner = DecompositionRunner(inst, experiment.decomposer, self.solver)
@@ -127,9 +177,8 @@ class ExperimentRunner:
                 self.decomp_runner.inst = inst
                 self.decomp_runner.decomposer = experiment.decomposer
 
-            experiment_data.append(self.get_decomp_best_found(inst.extra['name'], experiment.name))
-
-        return experiment_data
+            # self.get_decomp_best_found(inst.extra['name'], experiment.name)
+            self.get_all_decomp(inst.extra['name'], experiment.name)
 
 
     def read_instance(self, dir_name, instance_name):
@@ -153,10 +202,7 @@ class ExperimentRunner:
         # call solver directly without decomposition
         logger.info('')
         solution = self.solver.solve(inst)
-        if 'cost' in solution.metrics:
-            cost = solution.metrics['cost']
-        else:
-            cost = 0
+        cost = solution.metrics['cost']
         logger.info(f'No decomp cost: {cost} with {len(solution.routes)} routes')
         return cost, solution.routes
 
@@ -191,7 +237,7 @@ class ExperimentRunner:
                 helpers.write_to_excel(df, self.output_file_name, 'Basis')
 
                 # run all the decomposition experiments on current VRP instance
-                decomp_data = self.run_experiments(converted_inst)
+                self.run_experiments(converted_inst)
 
 
 if __name__ == "__main__":
@@ -213,6 +259,7 @@ if __name__ == "__main__":
     # run on a deterministic set of instances rather than a random sample
     # so that new experiments can be compared to old ones w/o rerunning old ones
     # focus on the 1k nodes benchmark where decomp is important
+    # TODO: use Solomon 100-node benchmark first
 
     ## geographically clustered
     ## narrow TWs
