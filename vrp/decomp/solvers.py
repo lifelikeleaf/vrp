@@ -84,7 +84,12 @@ class HgsSolverWrapper(AbstractSolverWrapper):
 
         if solution is None:
             # no feasible solution found
-            sol = VRPSolution([], {})
+            metrics = {
+                'cost': 0,
+                'distance': 0,
+                'wait_time': 0,
+            }
+            sol = VRPSolution([], metrics)
             return sol
 
         # return solution
