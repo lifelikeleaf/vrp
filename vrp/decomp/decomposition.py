@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from copy import deepcopy
 from multiprocessing import Pool
-from typing import Union
+from typing import Union, Any
 
 from .logger import logger
 
@@ -155,12 +155,12 @@ class VRPSolution:
         A dict of aggregatable metrics, e.g. cost, wait time.
 
     Optional:
-        extra: dict
-            A dict of additional data fields to include.
+        extra: list[Any]
+            A list of additional data to include.
     """
     routes: list[Route]
     metrics: dict[str, Number]
-    extra: dict = None
+    extra: list[Any] = None
 
 
 class AbstractDecomposer(ABC):
@@ -316,7 +316,7 @@ class DecompositionRunner:
             return self._run_solver_sequential()
 
 
-    def _aggregate(self, solution, total_routes, total_metrics):
+    def _aggregate(self, solution, total_routes, total_metrics, total_extra):
         for key, val in solution.metrics.items():
             if key in total_metrics:
                 total_metrics[key] += val
@@ -324,20 +324,26 @@ class DecompositionRunner:
                 total_metrics[key] = val
 
         total_routes.extend(solution.routes)
+        if solution.extra is not None:
+            total_extra.extend(solution.extra)
 
 
     def _run_solver_sequential(self):
         """Run solver on decomposed subproblems sequentially."""
-        total_metrics = {}
         total_routes = []
+        total_metrics = {}
+        total_extra = []
         for cluster in self.decomposer.clusters:
             decomp_inst = self._build_decomposed_instance(cluster)
             solution = \
                 self._run_solver_on_decomposed_instance(decomp_inst, cluster)
 
-            self._aggregate(solution, total_routes, total_metrics)
+            self._aggregate(solution, total_routes, total_metrics, total_extra)
 
-        return VRPSolution(total_routes, total_metrics)
+        if len(total_extra) == 0:
+            total_extra = None
+
+        return VRPSolution(total_routes, total_metrics, total_extra)
 
 
     def _run_solver_parallel(self, num_workers):
@@ -358,10 +364,14 @@ class DecompositionRunner:
 
         total_routes = []
         total_metrics = {}
+        total_extra = []
         for solution in results:
-            self._aggregate(solution, total_routes, total_metrics)
+            self._aggregate(solution, total_routes, total_metrics, total_extra)
 
-        return VRPSolution(total_routes, total_metrics)
+        if len(total_extra) == 0:
+            total_extra = None
+
+        return VRPSolution(total_routes, total_metrics, total_extra)
 
 
     def _build_decomposed_instance(self, cluster) -> VRPInstance:
