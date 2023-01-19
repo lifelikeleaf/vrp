@@ -4,6 +4,7 @@ from wurlitzer import pipes
 from .decomposition import AbstractSolverWrapper, VRPInstance, VRPSolution
 from .logger import logger
 from . import helpers
+from .constants import *
 
 logger = logger.getChild(__name__)
 
@@ -82,13 +83,19 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         if self.cpp_output:
             logger.debug(f'Output from C++: \n {out.read()}')
 
+        infinity = float('inf')
         if solution is None:
             # no feasible solution found
             metrics = {
-                'cost': 0,
-                'distance': 0,
-                'wait_time': 0,
+                METRIC_COST: infinity,
+                METRIC_DISTANCE: infinity,
+                METRIC_WAIT_TIME: infinity,
             }
+            # when called on decomposed instances, if one single
+            # instance finds no feasible solution, aggregated cost will
+            # be inf, indicating no feasible solution found for the original
+            # instance, regardless of how many routes from other instances
+            # may have been collected.
             sol = VRPSolution([], metrics)
             return sol
 
@@ -96,9 +103,9 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         # returning solution object alone makes solution.routes = []
         # see bindings.cpp
         metrics = {
-            'cost': solution.cost,
-            'distance': solution.distance,
-            'wait_time': solution.waitTime,
+            METRIC_COST: solution.cost,
+            METRIC_DISTANCE: solution.distance,
+            METRIC_WAIT_TIME: solution.waitTime,
         }
         sol = VRPSolution(solution.routes, metrics)
         return sol
