@@ -18,25 +18,35 @@ def compute_route_wait_time(route, dist, timew, service_t):
     # route doesn't include depot
     # dist, timew and service_t do include depot = 0
 
+    depot = 0
+    first_stop = route[0]
     route_wait_time = 0
 
     # don't count the wait time at the first stop
     # bc the vehicle could always be dispatched later from the depot
-    # so that it arrives exactly at the earliest arrival time of the first stop
-    # and it doesn't affect feasibility
-    first_stop = route[0]
-    first_stop_earliest_start, first_stop_latest_arrival = timew[first_stop]
-    current_time = first_stop_earliest_start + service_t[first_stop]
+    # so as to not incur any wait time and it doesn't affect feasibility
+    # NOTE: can't simply start at the earliest start time of the first node,
+    # bc the earliest start time of the first node could be 0 and we can't
+    # start at the first stop at time 0, bc we have to first travel from
+    # deopt to the first stop
+    depot_tw_earliest_start, _ = timew[depot]
+    depot_earliest_departure_time = depot_tw_earliest_start + service_t[depot]
+    travel_time = dist[depot, first_stop]
+    arrival_time = depot_earliest_departure_time + travel_time
+
+    tw_earliest_start, _ = timew[first_stop]
+    logical_earliest_start = max(arrival_time, tw_earliest_start)
+    departure_time = logical_earliest_start + service_t[first_stop]
 
     prev_stop = first_stop
     for stop in route[1:]: # start counting wait time from the 2nd stop
-        earliest_arrival, latest_arrival = timew[stop]
-        arrival_time = current_time + dist[prev_stop, stop]
+        tw_earliest_start, _ = timew[stop]
+        arrival_time = departure_time + dist[prev_stop, stop]
         # Wait if we arrive before earliest_arrival
-        current_time = max(arrival_time, earliest_arrival)
-        wait_time = earliest_arrival - arrival_time
-        route_wait_time += max(0, wait_time)
-        current_time += service_t[stop]
+        wait_time = max(0, tw_earliest_start - arrival_time)
+        route_wait_time += wait_time
+        logical_earliest_start = arrival_time + wait_time
+        departure_time = logical_earliest_start + service_t[stop]
         prev_stop = stop
 
     return route_wait_time
@@ -124,10 +134,6 @@ print('wait time:', best.waitTime) # best.waitTime == total_wait_time
 
 total_wait_time = 0
 for route in best.routes:
-    # don't count the wait time at the first stop
-    # bc the vehicle could always be dispatched later from the depot
-    # so that it arrives exactly at the earliest arrival time of the first stop
-    # and it doesn't affect feasibility
     total_wait_time += compute_route_wait_time(route, instance['duration_matrix'], instance['time_windows'], instance['service_times'])
 
 print('calculated total wait time:', total_wait_time)
