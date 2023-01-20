@@ -188,35 +188,6 @@ if __name__ == "__main__":
         return sample_benchmarks
 
 
-    # run on a deterministic set of instances rather than a random sample
-    # so that new experiments can be compared to old ones w/o rerunning old ones
-    # focus on the 1k nodes benchmark where decomp is important
-
-    # But use Solomon 100-node benchmark first for faster experiments
-    '''Solomon 100-node benchmark first'''
-    C1 = ['C101', 'C102', 'C103', 'C104', 'C105', 'C106', 'C107', 'C108', 'C109']
-    C2 = ['C201', 'C202', 'C203', 'C204', 'C205', 'C206', 'C207', 'C208']
-    R1 = ['R101', 'R102', 'R103', 'R104', 'R105', 'R106', 'R107', 'R108', 'R109', 'R110', 'R111', 'R112']
-    R2 = ['R201', 'R202', 'R203', 'R204', 'R205', 'R206', 'R207', 'R208', 'R209', 'R210', 'R211']
-    RC1 = ['RC101', 'RC102', 'RC103', 'RC104', 'RC105', 'RC106', 'RC107', 'RC108']
-    RC2 = ['RC201', 'RC202', 'RC203', 'RC204', 'RC205', 'RC206', 'RC207', 'RC208']
-
-    '''HG 1k-node benchmark'''
-    ## geographically clustered
-    ## narrow TWs
-    C1_10 = ['C1_10_1', 'C1_10_2', 'C1_10_3', 'C1_10_4', 'C1_10_5', 'C1_10_6', 'C1_10_7', 'C1_10_8', 'C1_10_9', 'C1_10_10']
-    ## wide TWs
-    C2_10 = ['C2_10_1', 'C2_10_2', 'C2_10_3', 'C2_10_4', 'C2_10_5', 'C2_10_6', 'C2_10_7', 'C2_10_8', 'C2_10_9', 'C2_10_10']
-
-    ## randomly distributed
-    R1_10 = ['R1_10_1', 'R1_10_2', 'R1_10_3', 'R1_10_4', 'R1_10_5', 'R1_10_6', 'R1_10_7', 'R1_10_8', 'R1_10_9', 'R1_10_10']
-    R2_10 = ['R2_10_1', 'R2_10_2', 'R2_10_3', 'R2_10_4', 'R2_10_5', 'R2_10_6', 'R2_10_7', 'R2_10_8', 'R2_10_9', 'R2_10_10']
-
-    ## mixed
-    RC1_10 = ['RC1_10_1', 'RC1_10_2', 'RC1_10_3', 'RC1_10_4', 'RC1_10_5', 'RC1_10_6', 'RC1_10_7', 'RC1_10_8', 'RC1_10_9', 'RC1_10_10']
-    RC2_10 = ['RC2_10_1', 'RC2_10_2', 'RC2_10_3', 'RC2_10_4', 'RC2_10_5', 'RC2_10_6', 'RC2_10_7', 'RC2_10_8', 'RC2_10_9', 'RC2_10_10']
-
-
     def k_medoids():
         # for each instance, run a set of experiments
         # each experiment is a diff way to decompose the instance
@@ -224,47 +195,50 @@ if __name__ == "__main__":
         experiments = []
         experiments.append(Experiment('euclidean', KMedoidsDecomposer()))
         experiments.append(Experiment('TW', KMedoidsDecomposer(use_tw=True)))
-        # # gap by default is negative (gap < 0)
-        # experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
+        # gap by default is negative (gap < 0)
+        experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
         # # currently no wait time in OF value, only wait time added post-routing
         # # so this essentially makes all gap a penalty (gap > 0)
         # experiments.append(Experiment('TW_Pos_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True)))
 
         # # normalized version of above
-        # experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
-        # experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
-        # experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
+        experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
+        experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
+        experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
         # experiments.append(Experiment('TW_Pos_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True)))
         return experiments
 
 
     '''parameters for experiments'''
-    num_clusters_range = (3, 3) # inclusive
-    repeat_n_times = 1
-    time_limit = 5
+    num_clusters_range = (2, 5) # inclusive
+    repeat_n_times = 3
+    time_limit = 10
     experiments = k_medoids
-    file_name = experiments.__name__ + '_test'
-    # benchmarks = [(RC2, 100)]
+    # input = {'C1': C1, 'C2': C2, 'R1': R1, 'R2': R2, 'RC1': RC1, 'RC2': RC2, 'size': 100}
+    input = {'focus': FOCUS_GROUP, 'size': 1000}
+
+    # file_name = experiments.__name__ + '_test'
+    # # Example instance returning no feasible solution:
+    # benchmarks = [(['R1_6_1'], 600)]
 
     # sample_size = 10
     # instance_sizes = [100, 200, 400, 600, 800, 1000]
-
-    benchmarks = [(['C101'], 100)]
-    # Example instance returning no feasible solution:
-    # benchmarks = [(['R1_6_1'], 600)]
     # benchmarks = sample_benchmarks(sample_size, instance_sizes)
-
     '''parameters for experiments'''
 
 
     solver = HgsSolverWrapper(time_limit)
-    runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name)
-    runner.add_experiements(experiments())
+    for key, val in input.items():
+        file_name = experiments.__name__ + f'_{key}'
+        benchmarks = [(val, input['size'])]
 
-    try:
-        runner.run()
-    except Exception as err:
-        tb_msg = traceback.format_exc()
-        logger.error(tb_msg)
-        raise
+        runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name)
+        runner.add_experiements(experiments())
+
+        try:
+            runner.run()
+        except Exception as err:
+            tb_msg = traceback.format_exc()
+            logger.error(tb_msg)
+            raise
 
