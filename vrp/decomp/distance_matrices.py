@@ -1,5 +1,5 @@
 from functools import lru_cache
-from scipy.spatial.distance import euclidean
+from scipy.spatial.distance import euclidean as scipy_euclidean
 
 from . import helpers
 
@@ -18,6 +18,10 @@ def v2(feature_vectors, instance_name, decomposer):
     spatial_temporal_distance = euclidean_dist * temporal_weight
     '''
     return _dist_matrix(feature_vectors, instance_name, decomposer, _pairwise_dist_v2)
+
+
+def euclidean(feature_vectors, instance_name, decomposer):
+    return _dist_matrix(feature_vectors, instance_name, decomposer, _pairwise_euclidean_dist)
 
 
 ### Private Section ###
@@ -40,7 +44,7 @@ class _PairwiseDistance:
         tw_width_2 = tw_end_2 - tw_start_2
         max_tw_width = max(tw_width_1, tw_width_2)
 
-        self.euclidean_dist = euclidean([x1, y1], [x2, y2])
+        self.euclidean_dist = scipy_euclidean([x1, y1], [x2, y2])
         overlap_or_gap = helpers.get_time_window_overlap_or_gap(
             [tw_start_1, tw_end_1],
             [tw_start_2, tw_end_2]
@@ -53,6 +57,7 @@ class _PairwiseDistance:
             # there's a time window overlap between these 2 nodes
             overlap = overlap_or_gap
             temporal_weight = helpers.safe_divide(self.euclidean_dist, max_tw_width) * overlap
+            # print(f'Overlap: {overlap} b/t nodes ({x1}, {y1}) and ({x2}, {y2}); euclidean dist: {self.euclidean_dist}; temporal weight: {temporal_weight}')
         elif self.decomposer.use_gap:
             # there's a time window gap between these 2 nodes
             assert overlap_or_gap < 0
@@ -102,6 +107,14 @@ def _pairwise_dist_v1(fv_node_1, fv_node_2, decomposer):
 def _pairwise_dist_v2(fv_node_1, fv_node_2, decomposer):
     pd = _PairwiseDistance(fv_node_1, fv_node_2, decomposer)
     return pd.spatial_temporal_distance_v2()
+
+
+def _pairwise_euclidean_dist(fv_node_1, fv_node_2, decomposer):
+    x1, y1, tw_start_1, tw_end_1 = fv_node_1
+    x2, y2, tw_start_2, tw_end_2 = fv_node_2
+    euclidean_dist = scipy_euclidean([x1, y1], [x2, y2])
+    # print(f'Euclidean: {euclidean_dist}')
+    return euclidean_dist
 
 
 @lru_cache(maxsize=1)
