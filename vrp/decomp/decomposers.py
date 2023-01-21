@@ -107,6 +107,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
     """Abstract base class for distance matrix based decomposers."""
     def __init__(
         self,
+        dist_matrix_func,
         name=None,
         num_clusters=2,
         use_tw=False,
@@ -117,6 +118,9 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         """
         Parameters
         ----------
+        dist_matrix_func: Callable
+            A callable that returns a distance matrix.
+
         Optional:
             use_gap: bool
                 Whether to consider gap b/t time windows for temporal_weight.
@@ -128,6 +132,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
 
         """
         super().__init__(name, num_clusters, use_tw, normalize)
+        self.dist_matrix_func = dist_matrix_func
         self.use_gap = use_gap
         self.minimize_wait_time = minimize_wait_time
 
@@ -219,11 +224,11 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
             metric = 'precomputed'
-            dist_matrix = self.compute_spatial_temporal_distance_matrix(
-                feature_vectors,
-                self.compute_pairwise_spatial_temporal_distance
-            )
-            X = dist_matrix
+            # dist_matrix = self.compute_spatial_temporal_distance_matrix(
+            #     feature_vectors,
+            #     self.compute_pairwise_spatial_temporal_distance
+            # )
+            X = self.dist_matrix_func(feature_vectors, inst.extra['name'], self)
         else:
             metric = 'euclidean' #  or a callable
             X = feature_vectors.data

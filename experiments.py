@@ -15,14 +15,9 @@ from vrp.decomp.solvers import HgsSolverWrapper
 import vrp.decomp.helpers as helpers
 from vrp.decomp.logger import logger
 from vrp.decomp.constants import *
+import vrp.decomp.distance_matrices as dm
 
 logger = logger.getChild(__name__)
-
-
-class Experiment:
-    def __init__(self, name, decomposer) -> None:
-        self.name = name
-        self.decomposer = decomposer
 
 
 class ExperimentRunner:
@@ -31,16 +26,16 @@ class ExperimentRunner:
         self.num_clusters_range = num_clusters_range
         self.repeat_n_times = repeat_n_times
         self.output_file_name = output_file_name
-        self.experiments: list[Experiment] = []
+        self.experiments = []
         self.solver = solver
         self.decomp_runner = None
 
 
-    def add_experiement(self, experiment: Experiment):
+    def add_experiement(self, experiment):
         self.experiments.append(experiment)
 
 
-    def add_experiements(self, experiments: list[Experiment]):
+    def add_experiements(self, experiments):
         self.experiments.extend(experiments)
 
 
@@ -96,16 +91,9 @@ class ExperimentRunner:
 
 
     def run_experiments(self, inst):
-        for experiment in self.experiments:
-            if self.decomp_runner is None:
-                self.decomp_runner = DecompositionRunner(inst, experiment.decomposer, self.solver)
-            else:
-                # self.decomp_runner already exists, update its inst and
-                # decomposer attributes, as they may have changed
-                self.decomp_runner.inst = inst
-                self.decomp_runner.decomposer = experiment.decomposer
-
-            self.get_all_decomp(inst.extra['name'], experiment.name)
+        for decomposer in self.experiments:
+            self.decomp_runner = DecompositionRunner(inst, decomposer, self.solver)
+            self.get_all_decomp(inst.extra['name'], decomposer.name)
 
 
     def read_instance(self, dir_name, instance_name):
@@ -191,32 +179,32 @@ if __name__ == "__main__":
         # each experiment is a diff way to decompose the instance
         # the best found solution is over a range of num_clusters and repeated n times
         experiments = []
-        experiments.append(Experiment('euclidean', KMedoidsDecomposer()))
-        experiments.append(Experiment('TW', KMedoidsDecomposer(use_tw=True)))
+        dist_matrix_func = dm.v1
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='euclidean'))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW', use_tw=True))
         # gap by default is negative (gap < 0)
-        experiments.append(Experiment('TW_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True)))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap', use_tw=True, use_gap=True))
         # # currently no wait time in OF value, only wait time added post-routing
         # # so this essentially makes all gap a penalty (gap > 0)
-        # experiments.append(Experiment('TW_Pos_Gap', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True)))
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Pos_Gap', use_tw=True, use_gap=True, minimize_wait_time=True))
 
         # # normalized version of above
-        experiments.append(Experiment('euclidean_norm', KMedoidsDecomposer(normalize=True)))
-        experiments.append(Experiment('TW_norm', KMedoidsDecomposer(use_tw=True, normalize=True)))
-        experiments.append(Experiment('TW_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, normalize=True)))
-        # experiments.append(Experiment('TW_Pos_Gap_norm', KMedoidsDecomposer(use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True)))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='euclidean_norm', normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_norm', use_tw=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_norm', use_tw=True, use_gap=True, normalize=True))
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Pos_Gap_norm', use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True))
         return experiments
 
 
     '''parameters for experiments'''
     num_clusters_range = (2, 5) # inclusive
     repeat_n_times = 3
-    time_limit = 10
+    time_limit = 5
     experiments = k_medoids
-    experiments_only = False # only run experiments, don't run Basis
+    experiments_only = False # True if only run experiments, don't run Basis
     # input = {'C1': C1, 'C2': C2, 'R1': R1, 'R2': R2, 'RC1': RC1, 'RC2': RC2}
-    # input = {'focus_C1': FOCUS_GROUP_C1, 'focus_RC2': FOCUS_GROUP_RC2}
-    input = {'RC2': RC2}
-    benchmark_dir_name = SOLOMON
+    input = {'focus_C1': FOCUS_GROUP_C1, 'focus_RC2': FOCUS_GROUP_RC2}
+    benchmark_dir_name = HG
 
     # file_name = experiments.__name__ + '_test'
     # # Example instance returning no feasible solution: 'R1_6_1'
