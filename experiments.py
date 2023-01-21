@@ -65,7 +65,7 @@ class ExperimentRunner:
                 sol_header = f'Solution for experiment: {experiment_name} on instance {instance_name}'
                 logger.info(f"------ {sol_header} ------")
                 logger.info(f"Decomp cost: {cost} (include wait time cost: {cost_wait}) with "
-                            f"{num_clusters} clusters and {len(routes)} routes")
+                            f"{num_clusters} clusters and {len(routes)} routes; iteration {i}")
                 logger.info('')
 
                 # write KPIs to excel
@@ -141,32 +141,31 @@ class ExperimentRunner:
         return cost, cost_wait, solution.routes
 
 
-    def run(self):
-        for benchmark, size in self.benchmarks:
-            dir_name = SOLOMON if size == 100 else HG
-
+    def run(self, experiments_only=False):
+        for benchmark, benchmark_dir_name in self.benchmarks:
             for instance_name in benchmark:
-                inst, bk_sol = self.read_instance(dir_name, instance_name)
+                inst, bk_sol = self.read_instance(benchmark_dir_name, instance_name)
                 converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
-                no_decomp_cost, no_decomp_cost_wait, no_decomp_routes = self.get_no_decomp_solution(converted_inst)
 
-                # prepare data to be written to excel
-                excel_data = {
-                    KEY_INSTANCE_NAME: [instance_name],
-                    f'{KEY_NUM_ROUTES}_BK': [len(bk_sol.routes)],
-                    f'{KEY_NUM_ROUTES}_NO_decomp': [len(no_decomp_routes)],
-                    f'{KEY_COST}_BK': [bk_sol.cost],
-                    f'{KEY_COST}_NO_decomp': [no_decomp_cost],
-                    f'{KEY_COST_WAIT}_NO_decomp': [no_decomp_cost_wait],
-                }
+                if not experiments_only:
+                    no_decomp_cost, no_decomp_cost_wait, no_decomp_routes = self.get_no_decomp_solution(converted_inst)
 
-                # write base reference data to excel in its own tab
-                # subsequently each experiment will also write its output
-                # in its own tab - one tab per experiment, one row per instance
-                df = pd.DataFrame(excel_data)
-                ## df = df.reindex(sorted(df.columns), axis=1)
-                ## sheet_name = f'{dir_name}-{size}'
-                helpers.write_to_excel(df, self.output_file_name, sheet_name='Basis')
+                    # prepare data to be written to excel
+                    excel_data = {
+                        KEY_INSTANCE_NAME: [instance_name],
+                        f'{KEY_NUM_ROUTES}_BK': [len(bk_sol.routes)],
+                        f'{KEY_NUM_ROUTES}_NO_decomp': [len(no_decomp_routes)],
+                        f'{KEY_COST}_BK': [bk_sol.cost],
+                        f'{KEY_COST}_NO_decomp': [no_decomp_cost],
+                        f'{KEY_COST_WAIT}_NO_decomp': [no_decomp_cost_wait],
+                    }
+
+                    # write base reference data to excel in its own tab
+                    # subsequently each experiment will also write its output
+                    # in its own tab - one tab per experiment, one row per instance
+                    df = pd.DataFrame(excel_data)
+                    ## df = df.reindex(sorted(df.columns), axis=1)
+                    helpers.write_to_excel(df, self.output_file_name, sheet_name='Basis')
 
                 # run all the decomposition experiments on current VRP instance
                 self.run_experiments(converted_inst)
@@ -177,13 +176,12 @@ if __name__ == "__main__":
 
 
     def sample_benchmarks(sample_size, instance_sizes):
-        # benchmarks = []
         sample_benchmarks = []
         for size in instance_sizes:
             benchmark = cvrplib.list_names(low=size, high=size, vrp_type='vrptw')
-            # benchmarks.append((benchmark, size))
             sample = random.sample(benchmark, sample_size)
-            sample_benchmarks.append((sample, size))
+            benchmark_dir_name = SOLOMON if size == 100 else HG
+            sample_benchmarks.append((sample, benchmark_dir_name))
 
         return sample_benchmarks
 
@@ -214,12 +212,14 @@ if __name__ == "__main__":
     repeat_n_times = 3
     time_limit = 10
     experiments = k_medoids
-    # input = {'C1': C1, 'C2': C2, 'R1': R1, 'R2': R2, 'RC1': RC1, 'RC2': RC2, 'size': 100}
-    input = {'focus': FOCUS_GROUP, 'size': 1000}
+    experiments_only = False # only run experiments, don't run Basis
+    # input = {'C1': C1, 'C2': C2, 'R1': R1, 'R2': R2, 'RC1': RC1, 'RC2': RC2}
+    # input = {'focus_C1': FOCUS_GROUP_C1, 'focus_RC2': FOCUS_GROUP_RC2}
+    input = {'RC2': RC2}
+    benchmark_dir_name = SOLOMON
 
     # file_name = experiments.__name__ + '_test'
-    # # Example instance returning no feasible solution:
-    # benchmarks = [(['R1_6_1'], 600)]
+    # # Example instance returning no feasible solution: 'R1_6_1'
 
     # sample_size = 10
     # instance_sizes = [100, 200, 400, 600, 800, 1000]
@@ -228,15 +228,16 @@ if __name__ == "__main__":
 
 
     solver = HgsSolverWrapper(time_limit)
-    for key, val in input.items():
-        file_name = experiments.__name__ + f'_{key}'
-        benchmarks = [(val, input['size'])]
+    for name, benchmark in input.items():
+        file_name = experiments.__name__ + f'_{name}'
+        # e.g. [(['C101', 'C102', 'C103'], SOLOMON)]
+        benchmarks = [(benchmark, benchmark_dir_name)]
 
         runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name)
         runner.add_experiements(experiments())
 
         try:
-            runner.run()
+            runner.run(experiments_only)
         except Exception as err:
             tb_msg = traceback.format_exc()
             logger.error(tb_msg)
