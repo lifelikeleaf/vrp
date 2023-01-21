@@ -25,11 +25,16 @@ class BaseDecomposer(AbstractDecomposer):
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
-    def __init__(self, num_clusters=2, use_tw=False, normalize=False) -> None:
+    def __init__(self, name=None, num_clusters=2, use_tw=False, normalize=False) -> None:
         """
         Parameters
         ----------
         Optional:
+            name: str
+                The name of this decomposer. It can be used to identify
+                an experiment.
+                Default is None.
+
             num_clusters: int > 0
                 Number of clusters to decompose the VRP problem instance into.
                 Default is 2.
@@ -43,7 +48,7 @@ class BaseDecomposer(AbstractDecomposer):
                 Default is False.
 
         """
-        # TODO: make sure num_clusters > 0
+        self.name = name
         self.num_clusters = num_clusters
         self.use_tw = use_tw
         self.normalize = normalize
@@ -92,6 +97,7 @@ class BaseDecomposer(AbstractDecomposer):
             clusters[labels[i]].append(i + 1)
 
         logger.info(f'Num clusters: {num_clusters}')
+        # TODO: dump to json?
         logger.debug(f'Clusters: \n{clusters}')
 
         return clusters
@@ -101,6 +107,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
     """Abstract base class for distance matrix based decomposers."""
     def __init__(
         self,
+        name=None,
         num_clusters=2,
         use_tw=False,
         normalize=False,
@@ -116,18 +123,16 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
                 Default is False.
 
             minimize_wait_time: bool
-                Whether to minimize waiting time in objective function.
+                Whether to minimize wait time in objective function.
                 Default is False.
 
         """
-        super().__init__(num_clusters, use_tw, normalize)
-        # whether to consider gap b/t time windows for temporal_weight
+        super().__init__(name, num_clusters, use_tw, normalize)
         self.use_gap = use_gap
-        # whether to minimize waiting time in objective function
         self.minimize_wait_time = minimize_wait_time
 
 
-    def compute_pairwise_spatial_temportal_distance(self, fv_node_1, fv_node_2):
+    def compute_pairwise_spatial_temporal_distance(self, fv_node_1, fv_node_2):
         # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
         # The callable should take two arrays from X as input and return
         # a value indicating the distance between them.
@@ -155,34 +160,37 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
             # there's a time window gap between these 2 nodes
             assert overlap_or_gap < 0
             gap = overlap_or_gap
-            # if waiting time is not included in objective function,
+            # if wait time is not included in objective function,
             # then large gap b/t time windows is an advantage
             # bc it provides more flexibility for routing,
             # so leave it as a negative value will reduce
-            # spatial_temportal_distance
+            # spatial_temporal_distance
             if self.minimize_wait_time:
-                # TODO: experiment with including waiting time in solution
-                # value - currently it's not included
-                # but if waiting time IS included in objective function,
+                # TODO: experiment with including wait time in OF
+                # value - it's not considered by HGS solver and it's not
+                # trivial to add it; check GOR Tools?
+                # but if wait time IS included in objective function,
                 # then large gap b/t time windows is a penalty,
                 # so take its absolute value will increase
-                # spatial_temportal_distance
+                # spatial_temporal_distance
                 gap = abs(gap)
             temporal_weight = helpers.safe_divide(1, euclidean_dist) * gap
 
-        spatial_temportal_distance = euclidean_dist + temporal_weight
+        spatial_temporal_distance = euclidean_dist + temporal_weight
 
         # only non-negative values are valid
         # Precomputed distances need to have non-negative values,
         # else pairwise_distances() throws ValueError
-        return max(0, spatial_temportal_distance)
+        return max(0, spatial_temporal_distance)
 
 
     @staticmethod
     @lru_cache(maxsize=1)
-    def compute_spatial_temportal_distance_matrix(feature_vectors, callable):
+    def compute_spatial_temporal_distance_matrix(feature_vectors, callable):
         # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
-        return pairwise_distances(feature_vectors.data, metric=callable)
+        dist_matrix = pairwise_distances(feature_vectors.data, metric=callable)
+        # TODO: dump to excel
+        return dist_matrix
 
 
 class KMeansDecomposer(BaseDecomposer):
@@ -211,9 +219,9 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
             metric = 'precomputed'
-            dist_matrix = self.compute_spatial_temportal_distance_matrix(
+            dist_matrix = self.compute_spatial_temporal_distance_matrix(
                 feature_vectors,
-                self.compute_pairwise_spatial_temportal_distance
+                self.compute_pairwise_spatial_temporal_distance
             )
             X = dist_matrix
         else:
@@ -250,9 +258,9 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
             logger.info('using time windows...')
             affinity = 'precomputed'
             # affinity matrix is the negative of distance matrix
-            affinity_matrix = -1 * self.compute_spatial_temportal_distance_matrix(
+            affinity_matrix = -1 * self.compute_spatial_temporal_distance_matrix(
                 feature_vectors,
-                self.compute_pairwise_spatial_temportal_distance
+                self.compute_pairwise_spatial_temporal_distance
             )
             X = affinity_matrix
         else:
