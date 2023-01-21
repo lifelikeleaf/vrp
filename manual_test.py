@@ -5,6 +5,9 @@ from vrp.decomp.solvers import HgsSolverWrapper
 from vrp.decomp.decomposers import KMedoidsDecomposer
 from vrp.decomp.decomposition import DecompositionRunner
 from vrp.decomp.constants import *
+import vrp.decomp.distance_matrices as DM
+import numpy as np
+import pandas as pd
 
 
 def compute_route_wait_time(route, inst, verbose=False):
@@ -98,16 +101,66 @@ def test_read_json():
     print(len(data))
 
 
+def test_get_clusters():
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1)
+    labels = [0, 1, 1, 3, 0, 0, 3, 3, 3, 1, 1]
+    clusters = decomposer.get_clusters(labels)
+    assert clusters == [[1, 5, 6], [2, 3, 10, 11], [4, 7, 8, 9]]
+    print(clusters)
+
+
+def test_dist_matrix_func():
+    dir_name = SOLOMON
+    instance_name = 'C101'
+    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
+    inst = cvrplib.read(instance_path=f'{file_name}.txt')
+    converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+
+    # dist_matrix_func = DM.euclidean
+    dist_matrix_func = DM.v1
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=False)
+    dist_matrix = decomposer.dist_matrix_func(feature_vectors, converted_inst.extra['name'], decomposer)
+    dist_matrix = np.array(dist_matrix)
+    '''
+    Example temporal dist and euclidean dist comparison: instance C101
+    FV: node 1 [45, 68, 912, 967] and node 21 [30, 52, 914, 965]
+        - euclidean_dist = ((30-45)**2 + (52-68)**2)**0.5 = 21.93171219946131
+        - node 1 TW width: 55; node 2 TW width: 51
+        - overlap = 51
+        - temporal_weight = euclidean_dist / max_tw_width * overlap
+            = 21.93171219946131 / 55 * 51 = 20.336678584955035
+        - spatial_temporal_dist = euclidean_dist + temporal_weight
+            = 21.93171219946131 + 20.336678584955035 = 42.26839078441634
+        - almost doubles euclidean_dist
+    '''
+    print(dist_matrix[0, 20])
+
+
+def test_decompose():
+    dir_name = HG
+    instance_name = 'C1_10_4'
+    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
+    inst = cvrplib.read(instance_path=f'{file_name}.txt')
+    converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, use_tw=True)
+    decomposer.num_clusters = 5
+    decomposer.decompose(converted_inst)
+
+
 def test_framework():
     dir_name = SOLOMON
-    instance_name = 'C105'
-    num_clusters = 3
+    instance_name = 'RC206'
+    num_clusters = 2
     file_name = os.path.join(CVRPLIB, dir_name, instance_name)
     inst = cvrplib.read(instance_path=f'{file_name}.txt')
     converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
 
     solver = HgsSolverWrapper(time_limit=5)
-    decomposer = KMedoidsDecomposer(num_clusters=num_clusters)
+    # solution = solver.solve(converted_inst)
+
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, num_clusters=num_clusters, use_tw=True, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
 
@@ -136,5 +189,6 @@ def test_framework():
 
 
 if __name__ == '__main__':
-    test_framework()
+    test_dist_matrix_func()
+    # pd.DataFrame()
 
