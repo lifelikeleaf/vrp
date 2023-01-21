@@ -50,7 +50,7 @@ class BaseDecomposer(AbstractDecomposer):
         """
         self.name = name
         self.num_clusters = num_clusters
-        self.use_tw = use_tw
+        self.use_tw = use_tw # TODO: remove
         self.normalize = normalize
 
 
@@ -68,6 +68,7 @@ class BaseDecomposer(AbstractDecomposer):
             # x, y coords for customer i
             row.append(nodes[i].x_coord)
             row.append(nodes[i].y_coord)
+            # TODO: remove this check and return consistent FV format
             if use_tw:
                 # earliest service start time for customer i
                 row.append(nodes[i].start_time)
@@ -90,17 +91,35 @@ class BaseDecomposer(AbstractDecomposer):
         # labels contains info on the actual number of clusters found,
         # whereas self.num_clusters is a user provided param.
         num_clusters = len(set(labels))
-        clusters = [[] for i in range(num_clusters)]
+
+        # NOTE: the set of labels are not guaranteed to be consecutive
+        # natural numbers, like [0, 1, 2, 3], even though most of the time
+        # they are. But sometimes it skips an integer, like [0, 1, 3, 4],
+        # which causes a hard-to-reproduce 'IndexError: list index out of range'
+        # if the implementation used a simple list with the assumption
+        # of consecutive natural numbers as indices.
+        dict_clusters = {cluster_id: [] for cluster_id in set(labels)}
+
+        logger.debug(f'Clusters container: {dict_clusters}')
+        logger.debug(f'Num customers: {len(labels)}')
         for i in range(len(labels)):
+            cluster_id = labels[i]
             # customer id is shifted by 1 bc index 0 is depot;
             # and depot is not clustered
-            clusters[labels[i]].append(i + 1)
+            dict_clusters[cluster_id].append(i + 1)
 
-        logger.info(f'Num clusters: {num_clusters}')
+        list_clusters = []
+        for key in dict_clusters:
+            list_clusters.append(dict_clusters[key])
+
+        assert num_clusters == len(list_clusters)
+        logger.info(f'Num clusters found: {num_clusters}')
         # TODO: dump to json?
-        logger.debug(f'Clusters: \n{clusters}')
+        logger.debug(f'Clusters found:')
+        for i, cluster in enumerate(list_clusters):
+            logger.debug(f'cluster {i}: \n{cluster}')
 
-        return clusters
+        return list_clusters
 
 
 class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
@@ -230,6 +249,7 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
             # )
             X = self.dist_matrix_func(feature_vectors, inst.extra['name'], self)
         else:
+            # TODO: use DM.euclidean
             metric = 'euclidean' #  or a callable
             X = feature_vectors.data
 
@@ -241,6 +261,8 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
         method = 'pam'
         # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
         init = 'k-medoids++'
+
+        logger.debug(f'Num clusters pass into KMedoids: {self.num_clusters}')
         kmedoids = KMedoids(
             n_clusters=self.num_clusters,
             metric=metric,
