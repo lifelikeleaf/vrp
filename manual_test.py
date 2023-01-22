@@ -118,9 +118,22 @@ def test_dist_matrix_func():
 
     # dist_matrix_func = DM.euclidean
     dist_matrix_func = DM.v1
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_gap=True)
+    # TODO: try normalized
     feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=False)
-    dist_matrix = decomposer.dist_matrix_func(feature_vectors, converted_inst.extra['name'], decomposer)
+    '''
+    For C101:
+    Overlap
+        - non-normalized: lots of overlaps; dist v1 < dist v2
+        - normalized: only a few (10) overlaps; dist v1 > dist v2
+    Gap:
+        - non-normalized: lots of gaps; gap size much > euclidean dist;
+            lots of negative (thus 0) distances; v2 more negative than v1 (v2 < v1)
+        - normalized: lots of gaps;
+    '''
+    print(f'fv1: {feature_vectors.data[0]}')
+    print(f'fv21: {feature_vectors.data[20]}')
+    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
     dist_matrix = np.array(dist_matrix)
     '''
     Example temporal dist and euclidean dist comparison: instance C101
@@ -135,11 +148,12 @@ def test_dist_matrix_func():
         - almost doubles euclidean_dist
     '''
     print(dist_matrix[0, 20])
+    print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
 def test_decompose():
-    dir_name = HG
-    instance_name = 'C1_10_4'
+    dir_name = SOLOMON
+    instance_name = 'C101'
     file_name = os.path.join(CVRPLIB, dir_name, instance_name)
     inst = cvrplib.read(instance_path=f'{file_name}.txt')
     converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
@@ -189,6 +203,8 @@ def test_framework():
 
 
 if __name__ == '__main__':
+    # test_get_clusters()
     test_dist_matrix_func()
-    # pd.DataFrame()
+    # test_decompose()
+    # test_framework()
 

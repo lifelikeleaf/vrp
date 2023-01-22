@@ -180,19 +180,30 @@ if __name__ == "__main__":
         # the best found solution is over a range of num_clusters and repeated n times
         experiments = []
         dist_matrix_func = DM.v1
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='euclidean'))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW', use_tw=True))
-        # gap by default is negative (gap < 0)
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap', use_tw=True, use_gap=True))
-        # # currently no wait time in OF value, only wait time added post-routing
-        # # so this essentially makes all gap a penalty (gap > 0)
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Pos_Gap', use_tw=True, use_gap=True, minimize_wait_time=True))
-
+        experiments.append(KMedoidsDecomposer(None, name='euclidean'))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_v1', use_tw=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_v1', use_tw=True, use_gap=True))
         # # normalized version of above
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='euclidean_norm', normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_norm', use_tw=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_norm', use_tw=True, use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Pos_Gap_norm', use_tw=True, use_gap=True, minimize_wait_time=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(None, name='euclidean_norm', normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_norm_v1', use_tw=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_norm_v1', use_tw=True, use_gap=True, normalize=True))
+
+        '''V2: simple overlap | simple gap'''
+        dist_matrix_func = DM.v2
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_v2', use_tw=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_v2', use_tw=True, use_gap=True))
+        # # normalized version of above
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_norm_v2', use_tw=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_norm_v2', use_tw=True, use_gap=True, normalize=True))
+
+        '''V3: v1 overlap | simple gap'''
+        dist_matrix_func = DM.v3
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_v3', use_tw=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_v3', use_tw=True, use_gap=True))
+        # # normalized version of above
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_norm_v3', use_tw=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW_Gap_norm_v3', use_tw=True, use_gap=True, normalize=True))
+
         return experiments
 
 
