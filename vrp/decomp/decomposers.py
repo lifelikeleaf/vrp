@@ -156,67 +156,6 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         self.minimize_wait_time = minimize_wait_time
 
 
-    def compute_pairwise_spatial_temporal_distance(self, fv_node_1, fv_node_2):
-        # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
-        # The callable should take two arrays from X as input and return
-        # a value indicating the distance between them.
-
-        # fv_node_1 and fv_node_2 are feature_vectors from 2 different nodes,
-        # in the format: [x, y, tw_start, tw_end]
-        # see `self.build_feature_vectors()`
-        x1, y1, tw_start_1, tw_end_1 = fv_node_1
-        x2, y2, tw_start_2, tw_end_2 = fv_node_2
-        tw_width_1 = tw_end_1 - tw_start_1
-        tw_width_2 = tw_end_2 - tw_start_2
-        max_tw_width = max(tw_width_1, tw_width_2)
-
-        euclidean_dist = euclidean([x1, y1], [x2, y2])
-        overlap_or_gap = helpers.get_time_window_overlap_or_gap(
-            [tw_start_1, tw_end_1],
-            [tw_start_2, tw_end_2]
-        )
-        temporal_weight = 0
-        if overlap_or_gap >= 0:
-            # there's a time window overlap between these 2 nodes
-            overlap = overlap_or_gap
-            temporal_weight = helpers.safe_divide(euclidean_dist, max_tw_width) * overlap
-        elif self.use_gap:
-            # there's a time window gap between these 2 nodes
-            assert overlap_or_gap < 0
-            gap = overlap_or_gap
-            # if wait time is not included in objective function,
-            # then large gap b/t time windows is an advantage
-            # bc it provides more flexibility for routing,
-            # so leave it as a negative value will reduce
-            # spatial_temporal_distance
-            if self.minimize_wait_time:
-                # TODO: experiment with including wait time in OF
-                # value - it's not considered by HGS solver and it's not
-                # trivial to add it; check GOR Tools?
-                # but if wait time IS included in objective function,
-                # then large gap b/t time windows is a penalty,
-                # so take its absolute value will increase
-                # spatial_temporal_distance
-                gap = abs(gap)
-            temporal_weight = helpers.safe_divide(1, euclidean_dist) * gap
-
-        spatial_temporal_distance = euclidean_dist + temporal_weight
-
-        # only non-negative values are valid
-        # Precomputed distances need to have non-negative values,
-        # else pairwise_distances() throws ValueError
-        return max(0, spatial_temporal_distance)
-
-
-    @staticmethod
-    @lru_cache(maxsize=1)
-    def compute_spatial_temporal_distance_matrix(feature_vectors, callable):
-        # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.pairwise_distances.html
-        dist_matrix = pairwise_distances(feature_vectors.data, metric=callable)
-        # TODO: dump to excel
-        return dist_matrix
-
-
 class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     @helpers.log_run_time
@@ -243,11 +182,10 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
             # for 'precomputed' must pass the fit() method a distance matrix
             # instead of a feature vector
             metric = 'precomputed'
-            # dist_matrix = self.compute_spatial_temporal_distance_matrix(
-            #     feature_vectors,
-            #     self.compute_pairwise_spatial_temporal_distance
-            # )
-            X = self.dist_matrix_func(feature_vectors, inst.extra['name'], self)
+            X = self.dist_matrix_func(feature_vectors, self)
+            # TODO: dump dist_matrix to excel
+            # instance_name
+            # experiment_name = self.name
         else:
             # TODO: use DM.euclidean
             metric = 'euclidean' #  or a callable
@@ -285,11 +223,7 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
             logger.info('using time windows...')
             affinity = 'precomputed'
             # affinity matrix is the negative of distance matrix
-            affinity_matrix = -1 * self.compute_spatial_temporal_distance_matrix(
-                feature_vectors,
-                self.compute_pairwise_spatial_temporal_distance
-            )
-            X = affinity_matrix
+            X = -1 * self.dist_matrix_func(feature_vectors, self)
         else:
             affinity = 'euclidean'
             X = feature_vectors.data

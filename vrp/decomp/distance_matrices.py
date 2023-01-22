@@ -6,22 +6,22 @@ from . import helpers
 
 ### Public Section ###
 
-def v1(feature_vectors, instance_name, decomposer):
+def v1(feature_vectors, decomposer):
     '''V1: add
     spatial_temporal_distance = euclidean_dist + temporal_weight
     '''
-    return _dist_matrix(feature_vectors, instance_name, decomposer, _pairwise_dist_v1)
+    return _dist_matrix(feature_vectors, decomposer, _pairwise_dist_v1)
 
 
-def v2(feature_vectors, instance_name, decomposer):
+def v2(feature_vectors, decomposer):
     '''V2: multiply
     spatial_temporal_distance = euclidean_dist * temporal_weight
     '''
-    return _dist_matrix(feature_vectors, instance_name, decomposer, _pairwise_dist_v2)
+    return _dist_matrix(feature_vectors, decomposer, _pairwise_dist_v2)
 
 
-def euclidean(feature_vectors, instance_name, decomposer):
-    return _dist_matrix(feature_vectors, instance_name, decomposer, _pairwise_euclidean_dist)
+def euclidean(feature_vectors, decomposer):
+    return _dist_matrix(feature_vectors, decomposer, _pairwise_euclidean_dist)
 
 
 ### Private Section ###
@@ -56,6 +56,8 @@ class _PairwiseDistance:
         if overlap_or_gap >= 0:
             # there's a time window overlap between these 2 nodes
             overlap = overlap_or_gap
+            # TODO: try simple overlap, i.e.
+            # temporal_weight = overlap
             temporal_weight = helpers.safe_divide(self.euclidean_dist, max_tw_width) * overlap
             # print(f'Overlap: {overlap} b/t nodes ({x1}, {y1}) and ({x2}, {y2}); euclidean dist: {self.euclidean_dist}; temporal weight: {temporal_weight}')
         elif self.decomposer.use_gap:
@@ -76,7 +78,12 @@ class _PairwiseDistance:
                 # so take its absolute value will increase
                 # spatial_temporal_distance
                 gap = abs(gap)
+            
+            # TODO: try simple gap, i.e.
+            # temporal_weight = gap
             temporal_weight = helpers.safe_divide(1, self.euclidean_dist) * gap
+            # TODO: take a look
+            # print(f'Gap: {gap} b/t nodes ({x1}, {y1}) and ({x2}, {y2}); euclidean dist: {self.euclidean_dist}; temporal weight: {temporal_weight}')
 
         return temporal_weight
 
@@ -87,6 +94,7 @@ class _PairwiseDistance:
         '''
         temporal_weight = self.temporal_weight_v1()
         spatial_temporal_distance = self.euclidean_dist + temporal_weight
+        # only non-negative distances are valid
         return max(0, spatial_temporal_distance)
 
 
@@ -118,7 +126,7 @@ def _pairwise_euclidean_dist(fv_node_1, fv_node_2, decomposer):
 
 
 @lru_cache(maxsize=1)
-def _dist_matrix(feature_vectors, instance_name, decomposer, pairwise_dist_callable):
+def _dist_matrix(feature_vectors, decomposer, pairwise_dist_callable):
     dist_matrix = []
 
     for node_1 in feature_vectors.data:
@@ -128,8 +136,5 @@ def _dist_matrix(feature_vectors, instance_name, decomposer, pairwise_dist_calla
 
         dist_matrix.append(row)
 
-    # TODO: dump to excel
-    # instance_name
-    # experiment_name = decomposer.name
     return dist_matrix
 
