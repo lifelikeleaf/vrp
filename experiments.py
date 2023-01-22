@@ -15,7 +15,7 @@ from vrp.decomp.solvers import HgsSolverWrapper
 import vrp.decomp.helpers as helpers
 from vrp.decomp.logger import logger
 from vrp.decomp.constants import *
-import vrp.decomp.distance_matrices as dm
+import vrp.decomp.distance_matrices as DM
 
 logger = logger.getChild(__name__)
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         # each experiment is a diff way to decompose the instance
         # the best found solution is over a range of num_clusters and repeated n times
         experiments = []
-        dist_matrix_func = dm.v1
+        dist_matrix_func = DM.v1
         experiments.append(KMedoidsDecomposer(dist_matrix_func, name='euclidean'))
         experiments.append(KMedoidsDecomposer(dist_matrix_func, name='TW', use_tw=True))
         # gap by default is negative (gap < 0)
@@ -200,10 +200,18 @@ if __name__ == "__main__":
     num_clusters_range = (2, 5) # inclusive
     repeat_n_times = 3
     time_limit = 5
+    output_dir_name = 'E5'
     experiments = k_medoids
     experiments_only = False # True if only run experiments, don't run Basis
     # input = {'C1': C1, 'C2': C2, 'R1': R1, 'R2': R2, 'RC1': RC1, 'RC2': RC2}
-    input = {'focus_C1': FOCUS_GROUP_C1, 'focus_RC2': FOCUS_GROUP_RC2}
+    input = {
+        'focus_C1': FOCUS_GROUP_C1,
+        'focus_C2': FOCUS_GROUP_C2,
+        'focus_R1': FOCUS_GROUP_R1,
+        'focus_R2': FOCUS_GROUP_R2,
+        'focus_RC1': FOCUS_GROUP_RC1,
+        'focus_RC2': FOCUS_GROUP_RC2,
+    }
     benchmark_dir_name = HG
 
     # file_name = experiments.__name__ + '_test'
@@ -218,6 +226,10 @@ if __name__ == "__main__":
     solver = HgsSolverWrapper(time_limit)
     for name, benchmark in input.items():
         file_name = experiments.__name__ + f'_{name}'
+        file_name = os.path.join(output_dir_name, file_name)
+        # make sure the output dir exists
+        os.makedirs(os.path.dirname(file_name), exist_ok=True)
+
         # e.g. [(['C101', 'C102', 'C103'], SOLOMON)]
         benchmarks = [(benchmark, benchmark_dir_name)]
 

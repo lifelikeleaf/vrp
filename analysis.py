@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import vrp.decomp.helpers as helpers
 from vrp.decomp.constants import *
@@ -16,19 +17,19 @@ def percent_diff(col1, col2):
     return round(percent, 2)
 
 
-def dump_comparison_data(exp_names):
+def dump_comparison_data(exp_names, dir_name):
     for exp_name in exp_names:
-        file_name = exp_name + '.xlsx'
+        input_file_name = os.path.join(dir_name, f'{exp_name}.xlsx')
         dfs = dict(
-            euc = pd.read_excel(file_name, sheet_name='euclidean'),
-            tw = pd.read_excel(file_name, sheet_name='TW'),
-            tw_gap = pd.read_excel(file_name, sheet_name='TW_Gap'),
-            tw_pos_gap = pd.read_excel(file_name, sheet_name='TW_Pos_Gap'),
+            euc = pd.read_excel(input_file_name, sheet_name='euclidean'),
+            tw = pd.read_excel(input_file_name, sheet_name='TW'),
+            tw_gap = pd.read_excel(input_file_name, sheet_name='TW_Gap'),
+            # tw_pos_gap = pd.read_excel(file_name, sheet_name='TW_Pos_Gap'),
 
-            euc_norm = pd.read_excel(file_name, sheet_name='euclidean_norm'),
-            tw_norm = pd.read_excel(file_name, sheet_name='TW_norm'),
-            tw_gap_norm = pd.read_excel(file_name, sheet_name='TW_Gap_norm'),
-            tw_pos_gap_norm = pd.read_excel(file_name, sheet_name='TW_Pos_Gap_norm'),
+            euc_norm = pd.read_excel(input_file_name, sheet_name='euclidean_norm'),
+            tw_norm = pd.read_excel(input_file_name, sheet_name='TW_norm'),
+            tw_gap_norm = pd.read_excel(input_file_name, sheet_name='TW_Gap_norm'),
+            # tw_pos_gap_norm = pd.read_excel(file_name, sheet_name='TW_Pos_Gap_norm'),
         )
 
         dfs_best = {name: get_best_found(df) for name, df in dfs.items()}
@@ -62,17 +63,20 @@ def dump_comparison_data(exp_names):
                 comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs_best['euc'][KEY_COST_WAIT])
 
         # print(comp)
-        helpers.write_to_excel(comp, file_name='comparison', sheet_name=exp_name, overlay=False)
+        output_file_name = os.path.join(dir_name, 'comparison')
+        helpers.write_to_excel(comp, file_name=output_file_name, sheet_name=exp_name, overlay=False)
 
 
 if __name__ == '__main__':
     exp_names = [
-        'k_medoids_C1',
-        'k_medoids_C2',
-        'k_medoids_R1',
-        'k_medoids_R2',
-        'k_medoids_RC1',
-        'k_medoids_RC2',
+        # 'k_medoids_C1',
+        # 'k_medoids_C2',
+        # 'k_medoids_R1',
+        # 'k_medoids_R2',
+        # 'k_medoids_RC1',
+        # 'k_medoids_RC2',
+        'k_medoids_focus_C1',
+        'k_medoids_focus_RC2',
     ]
 
-    dump_comparison_data(exp_names)
+    dump_comparison_data(exp_names, 'E4')
