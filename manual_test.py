@@ -153,12 +153,59 @@ def summary_fv(to_excel=False, summary_to_excel=False):
                 helpers.write_to_excel(df_desc, file_name=file_name, sheet_name=instance_name, overlay=False, index=True)
 
 
+def test_pairwise_distance():
+    dir_name = SOLOMON
+    instance_name = 'C101'
+    gap = False
+    norm = False
+
+    _, converted_inst = read_instance(dir_name, instance_name)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_tw=True, use_gap=gap)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
+    fv = feature_vectors.data
+
+    fv_i = fv[0]
+    fv_j = fv[20]
+
+    pd = DM._PairwiseDistance(fv_i, fv_j, decomposer)
+    pd_td = pd.temporal_dist_v1()
+    pd_std = pd.spatial_temporal_dist_v1()
+    tw_i = pd.tw_width_i
+    tw_j = pd.tw_width_j
+    tw = pd.max_tw_width
+    ed = pd.euclidean_dist
+    olg = pd.overlap_or_gap
+
+    td = ol = gap = ol_td = gap_td = 0
+    if olg >= 0:
+        ol = olg
+        td = ol_td = helpers.safe_divide(ed, tw) * olg
+    else:
+        gap = olg
+        td = gap_td = helpers.safe_divide(1, ed) * olg
+
+    print(f'FV_i = {fv_i}, FV_j = {fv_j}')
+    print(f'TW_i = {tw_i}, TW_j = {tw_j}, max TW = {tw}')
+    print(
+        f'Overlap or gap: {round(olg, 2)}; '
+        f'euclidean dist: {round(ed, 2)}; temporal dist: {round(td, 2)}'
+    )
+    print(f'temporal dist from PD = {round(pd_td, 2)}')
+    print(
+        f'Overlap ST dist v1 = {round(ed + ol_td, 2)} \n'
+        f'Overlap ST dist v2 = {round(ed + ol, 2)} \n'
+        f'Gap ST dist v1 = {round(ed + gap_td, 2)} \n'
+        f'Gap ST dist v2 = {round(ed + gap, 2)}'
+    )
+    print(f'ST dist from PD = {round(pd_std, 2)}')
+
+
 def dist_matrix_to_excel():
     dir_name = SOLOMON
     instance_name = 'C101'
     instance_size = 100
     dist_matrix_func = DM.v1
-    file_name = f'DM_{dist_matrix_func.__name__}'
+    file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
     gap = False
     norm = False
 
@@ -172,6 +219,7 @@ def dist_matrix_to_excel():
     ext = ''
     ext += '_gap' if gap else ''
     ext += '_norm' if norm else ''
+    helpers.make_dirs(TEST_DIR)
     helpers.write_to_excel(df, file_name=file_name, sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
     print(dist_matrix.shape)
     '''
@@ -250,7 +298,8 @@ if __name__ == '__main__':
     # test_normalize_matrix()
     # test_get_clusters()
     # summary_fv(to_excel=True, summary_to_excel=False)
-    dist_matrix_to_excel()
+    test_pairwise_distance()
+    # dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
 
