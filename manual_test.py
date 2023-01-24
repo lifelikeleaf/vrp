@@ -85,7 +85,7 @@ def list_benchmark_names():
     print(benchmark)
 
 
-def test_normalize():
+def test_normalize_fv():
     fv = [
         [1,2,3,4],
         [4,3,2,1],
@@ -93,6 +93,15 @@ def test_normalize():
     ]
     fv = helpers.normalize_feature_vectors(fv)
     print(fv)
+
+
+def test_normalize_matrix():
+    m = [
+        [1,2],
+        [4,3],
+    ]
+    m = helpers.normalize_matrix(m)
+    print(m)
 
 
 def test_read_json():
@@ -109,20 +118,58 @@ def test_get_clusters():
     print(clusters)
 
 
-def test_dist_matrix_func():
-    dir_name = SOLOMON
-    instance_name = 'C101'
+def read_instance(dir_name, instance_name):
     file_name = os.path.join(CVRPLIB, dir_name, instance_name)
     inst = cvrplib.read(instance_path=f'{file_name}.txt')
     converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+    return inst, converted_inst
 
-    # dist_matrix_func = DM.euclidean
+
+def summary_fv(to_excel=False, summary_to_excel=False):
+    dir_name = SOLOMON
+    names = ['C101']
+    # names.extend(FOCUS_GROUP_C1)
+    # names.extend(FOCUS_GROUP_RC2)
+    for instance_name in names:
+        _, converted_inst = read_instance(dir_name, instance_name)
+
+        decomposer = KMedoidsDecomposer(None, use_gap=True)
+        feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=False)
+        df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
+        df['time_duration'] = df['end'] - df['start']
+        df_desc = df.describe()
+        df_desc.drop(index=['count', '25%', '50%', '75%'], inplace=True)
+        print(f'\n{instance_name}')
+        print(df_desc)
+        if to_excel:
+            helpers.write_to_excel(df, file_name=f'FV', sheet_name=instance_name, overlay=False)
+            if summary_to_excel:
+                helpers.write_to_excel(df_desc, file_name=f'FV_summary', sheet_name=instance_name, overlay=False, index=True)
+
+
+def dist_matrix_to_excel():
+    dir_name = SOLOMON
+    instance_name = 'C101'
+    instance_size = 100
     dist_matrix_func = DM.v1
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_gap=True)
-    # TODO: try normalized
-    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=False)
+    file_name = f'DM_{dist_matrix_func.__name__}'
+    gap = False
+    norm = False
+
+    _, converted_inst = read_instance(dir_name, instance_name)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_tw=True, use_gap=gap)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
+    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+    dist_matrix = np.array(dist_matrix)
+    customer_ids = [i for i in range(1, instance_size + 1)]
+    df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
+    ext = ''
+    ext += '_gap' if gap else ''
+    ext += '_norm' if norm else ''
+    helpers.write_to_excel(df, file_name=file_name, sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
+    print(dist_matrix.shape)
     '''
-    For C101:
+    Visual inspection for instance C101:
     Overlap
         - non-normalized: lots of overlaps; dist v1 < dist v2
         - normalized: only a few (10) overlaps; dist v1 > dist v2
@@ -130,33 +177,26 @@ def test_dist_matrix_func():
         - non-normalized: lots of gaps; gap size much > euclidean dist;
             lots of negative (thus 0) distances; v2 more negative than v1 (v2 < v1)
         - normalized: lots of gaps;
-    '''
-    print(f'fv1: {feature_vectors.data[0]}')
-    print(f'fv21: {feature_vectors.data[20]}')
-    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-    dist_matrix = np.array(dist_matrix)
-    '''
-    Example temporal dist and euclidean dist comparison: instance C101
+
+    Example temporal dist and euclidean dist comparison:
     FV: node 1 [45, 68, 912, 967] and node 21 [30, 52, 914, 965]
         - euclidean_dist = ((30-45)**2 + (52-68)**2)**0.5 = 21.93171219946131
         - node 1 TW width: 55; node 2 TW width: 51
         - overlap = 51
-        - temporal_weight = euclidean_dist / max_tw_width * overlap
+        - temporal_dist = euclidean_dist / max_tw_width * overlap
             = 21.93171219946131 / 55 * 51 = 20.336678584955035
-        - spatial_temporal_dist = euclidean_dist + temporal_weight
+        - spatial_temporal_dist = euclidean_dist + temporal_dist
             = 21.93171219946131 + 20.336678584955035 = 42.26839078441634
         - almost doubles euclidean_dist
     '''
-    print(dist_matrix[0, 20])
-    print(dist_matrix[10, 10]) # dist to self should always be 0
+    # print(dist_matrix[0, 20])
+    # print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
 def test_decompose():
     dir_name = SOLOMON
     instance_name = 'C101'
-    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
-    inst = cvrplib.read(instance_path=f'{file_name}.txt')
-    converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+    inst, converted_inst = read_instance(dir_name, instance_name)
 
     decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, use_tw=True)
     decomposer.num_clusters = 5
@@ -167,9 +207,7 @@ def test_framework():
     dir_name = SOLOMON
     instance_name = 'RC206'
     num_clusters = 2
-    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
-    inst = cvrplib.read(instance_path=f'{file_name}.txt')
-    converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
+    inst, converted_inst = read_instance(dir_name, instance_name)
 
     solver = HgsSolverWrapper(time_limit=5)
     # solution = solver.solve(converted_inst)
@@ -203,8 +241,10 @@ def test_framework():
 
 
 if __name__ == '__main__':
+    # test_normalize_matrix()
     # test_get_clusters()
-    test_dist_matrix_func()
+    # summary_fv(to_excel=True, summary_to_excel=False)
+    dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
 
