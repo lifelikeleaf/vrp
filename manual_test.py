@@ -10,6 +10,9 @@ import numpy as np
 import pandas as pd
 
 
+TEST_DIR = 'Test'
+
+
 def compute_route_wait_time(route, inst, verbose=False):
     # `route` doesn't include depot; `inst` does include depot = 0
 
@@ -142,9 +145,12 @@ def summary_fv(to_excel=False, summary_to_excel=False):
         print(f'\n{instance_name}')
         print(df_desc)
         if to_excel:
-            helpers.write_to_excel(df, file_name=f'FV', sheet_name=instance_name, overlay=False)
+            helpers.make_dirs(TEST_DIR)
+            file_name = os.path.join(TEST_DIR, f'FV')
+            helpers.write_to_excel(df, file_name=file_name, sheet_name=instance_name, overlay=False)
             if summary_to_excel:
-                helpers.write_to_excel(df_desc, file_name=f'FV_summary', sheet_name=instance_name, overlay=False, index=True)
+                file_name = os.path.join(TEST_DIR, f'FV_summary')
+                helpers.write_to_excel(df_desc, file_name=file_name, sheet_name=instance_name, overlay=False, index=True)
 
 
 def dist_matrix_to_excel():

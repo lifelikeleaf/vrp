@@ -70,9 +70,9 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name):
             if name != 'euc':
                 comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs_best['euc'][KEY_COST_WAIT])
 
-        out = os.path.join(dir_name, sub_dir, output_name)
-        # make sure the output dir exists
-        os.makedirs(os.path.dirname(out), exist_ok=True)
+        dir_path = os.path.join(dir_name, sub_dir)
+        helpers.make_dirs(dir_path)
+        out = os.path.join(dir_path, output_name)
         helpers.write_to_excel(comp, file_name=out, sheet_name=exp_name, overlay=False)
 
 
@@ -129,10 +129,9 @@ def conditional_formatting(dir_name, sub_dir, file_name):
                     sheet[cell_loc_2] = f'=COUNTIFS({formula_range}, ">=0", {formula_range}, "<=1")'
                     sheet[cell_loc_3] = f'=COUNTIF({formula_range}, "<=1")'
 
-
-    out = os.path.join(dir_name, sub_dir, f'formatted_{file_name}.xlsx')
-    # make sure the output dir exists
-    os.makedirs(os.path.dirname(out), exist_ok=True)
+    dir_path = os.path.join(dir_name, sub_dir)
+    helpers.make_dirs(dir_path)
+    out = os.path.join(dir_path, f'formatted_{file_name}.xlsx')
     wb.save(out)
 
 

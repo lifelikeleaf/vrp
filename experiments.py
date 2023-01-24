@@ -236,10 +236,9 @@ if __name__ == "__main__":
 
     solver = HgsSolverWrapper(time_limit)
     for name, benchmark in input.items():
+        helpers.make_dirs(output_dir_name)
         file_name = experiments.__name__ + f'_{name}'
         file_name = os.path.join(output_dir_name, file_name)
-        # make sure the output dir exists
-        os.makedirs(os.path.dirname(file_name), exist_ok=True)
 
         # e.g. [(['C101', 'C102', 'C103'], SOLOMON)]
         benchmarks = [(benchmark, benchmark_dir_name)]

@@ -1,3 +1,4 @@
+import os
 import argparse
 import math
 import numpy as np
@@ -53,6 +54,18 @@ def normalize_feature_vectors(fv):
     # set ddof=0 for population std
     std = np.std(fv, axis=0, ddof=1)
     norm = (fv - mean) / std
+    return norm.tolist()
+
+
+def normalize_matrix(m):
+    """Normalize a matrix using z-score."""
+    m = np.array(m)
+    mean = np.mean(m)
+    # ddof=1 -> degrees of freedom = N-1, i.e. sample std
+    # ddof = 'delta degrees of freedom'
+    # set ddof=0 for population std
+    std = np.std(m, ddof=1)
+    norm = (m - mean) / std
     return norm.tolist()
 
 
@@ -121,7 +134,7 @@ def log_run_time(func: Callable):
     return decorator
 
 
-def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
+def df_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True, index=False):
     file_name = file_name + '.xlsx'
     if_sheet_exists = 'overlay' if overlay else 'replace'
     start_row = 0
@@ -130,7 +143,6 @@ def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
     try:
         if overlay:
             # if sheet exists, append to the end of the same sheet
-            # if sheet do not exist, create a new sheet in the excel file
             wb = xl.load_workbook(file_name)
             if sheet_name in wb.sheetnames:
                 sheet = wb[sheet_name]
@@ -140,12 +152,17 @@ def write_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True):
                 start_row = sheet.max_row
                 # do not write out the column names again
                 header = False
+        # if sheet does not exist, create a new sheet in the existing excel file
         with pd.ExcelWriter(file_name, mode='a', if_sheet_exists=if_sheet_exists) as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False, header=header, startrow=start_row)
+            df.to_excel(writer, sheet_name=sheet_name, index=index, header=header, startrow=start_row)
     except FileNotFoundError:
         # if file does not yet exist, create it
         with pd.ExcelWriter(file_name, mode='x') as writer:
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            df.to_excel(writer, sheet_name=sheet_name, index=index)
+
+
+# alias for backward compatibility
+write_to_excel = df_to_excel
 
 
 def write_to_json(data, file_name):
@@ -177,4 +194,10 @@ def sleep(sec, logger_name=__name__):
 def safe_divide(numerator, denominator):
     # prevent ZeroDivisionError by returning 0 if denominator is 0
     return numerator / denominator if denominator else 0
+
+
+def make_dirs(dir_name):
+    # make sure the parent directory exists
+    dir_name = os.path.join(dir_name, 'placeholder_file_name')
+    os.makedirs(os.path.dirname(dir_name), exist_ok=True)
 
