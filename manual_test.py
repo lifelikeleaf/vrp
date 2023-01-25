@@ -105,7 +105,7 @@ def test_normalize_matrix():
     ]
     m = helpers.normalize_matrix(m)
     print(m)
-
+    print(type(m))
 
 def test_read_json():
     file_name = 'k_medoids'
@@ -204,7 +204,7 @@ def dist_matrix_to_excel():
     dir_name = SOLOMON
     instance_name = 'C101'
     instance_size = 100
-    dist_matrix_func = DM.v1
+    dist_matrix_func = DM.v4
     file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
     gap = False
     norm = False
@@ -212,10 +212,22 @@ def dist_matrix_to_excel():
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_tw=True, use_gap=gap)
     feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
-    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-    dist_matrix = np.array(dist_matrix)
-    customer_ids = [i for i in range(1, instance_size + 1)]
-    df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
+    df = dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+    df_desc = df.describe()
+    '''
+    max_tw_width (by construct) and euclidean_dist (by nature) would only be 0 with itself, so could make sense to remove 0s;
+    but overlap and gap could legitimately be 0 b/t node pairs, albeit not very common;
+    and overlap with itself is always the full tw_width of itself,
+    whereas gap with itself is always 0
+    '''
+    # df_no_zeros = df.replace(0, np.NaN)
+    # df_desc = df_no_zeros.describe()
+    df_desc.drop(index=['count', '25%', '50%', '75%'], inplace=True)
+    print(f'\n{instance_name}')
+    print(df_desc.round(2))
+    # dist_matrix = np.array(dist_matrix)
+    # customer_ids = [i for i in range(1, instance_size + 1)]
+    # df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
     ext = ''
     ext += '_gap' if gap else ''
     ext += '_norm' if norm else ''
@@ -298,8 +310,8 @@ if __name__ == '__main__':
     # test_normalize_matrix()
     # test_get_clusters()
     # summary_fv(to_excel=True, summary_to_excel=False)
-    test_pairwise_distance()
-    # dist_matrix_to_excel()
+    # test_pairwise_distance()
+    dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
 
