@@ -43,7 +43,7 @@ def get_min_tours(demands, capacity):
     # total demand of all customers / vehicle capacity
     return math.ceil(sum(demands) / capacity)
 
-
+# TODO: rename to standardize_feature_vectors
 def normalize_feature_vectors(fv):
     """Normalize feature vectors using z-score."""
     if not isinstance(fv, np.ndarray):
@@ -54,12 +54,12 @@ def normalize_feature_vectors(fv):
     # ddof = 'delta degrees of freedom'
     # set ddof=0 for population std
     std = np.std(fv, axis=0, ddof=1)
-    norm = (fv - mean) / std
-    return norm.tolist()
+    z = (fv - mean) / std
+    return z.tolist()
 
 
-def normalize_matrix(m):
-    """Normalize a matrix using z-score."""
+def standardize_matrix(m):
+    """Standardize a matrix using z-score."""
     if not isinstance(m, np.ndarray):
         m = np.array(m)
     mean = np.mean(m)
@@ -67,7 +67,14 @@ def normalize_matrix(m):
     # ddof = 'delta degrees of freedom'
     # set ddof=0 for population std
     std = np.std(m, ddof=1)
-    norm = (m - mean) / std
+    z = (m - mean) / std
+    return z
+
+
+def normalize_matrix(m):
+    """Normalize a matrix using min-max scaling."""
+    m = np.asarray(m)
+    norm = (m - m.min()) / (m.max() - m.min())
     return norm
 
 

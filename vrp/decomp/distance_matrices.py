@@ -47,7 +47,10 @@ class _PairwiseDistance:
         self.gap = 0
         self.compute_constituents()
 
-
+    # TODO: have dist_matrix func call this and pass it to temporal_dist func
+    # bc constituents are always the same, only diff is if they're normalized or not.
+    # BUT for non-normalized, you don't have to loop over all n x n nodes twice,
+    # so it's a trade-off b/t efficiency and cleaner code.
     def compute_constituents(self):
         # node_i and node_j are feature_vectors from 2 different nodes,
         # in the format: [x, y, tw_start, tw_end]
@@ -64,7 +67,7 @@ class _PairwiseDistance:
             [tw_start_j, tw_end_j]
         )
         self.overlap = self.overlap_or_gap if self.overlap_or_gap > 0 else 0
-        self.gap = self.overlap_or_gap if self.overlap_or_gap < 0 else 0
+        self.gap = abs(self.overlap_or_gap) if self.overlap_or_gap < 0 else 0
 
         # collect constituents for this pair
         constituents = {
@@ -86,6 +89,7 @@ class _PairwiseDistance:
             overlap = self.overlap_or_gap
             temporal_dist = helpers.safe_divide(self.euclidean_dist, self.max_tw_width) * overlap
         elif self.decomposer.use_gap:
+            # TODO: keep gap always as a positive quantity and adjust formula accordingly
             # there's a time window gap between these 2 nodes
             assert self.overlap_or_gap < 0
             gap = self.overlap_or_gap
@@ -236,6 +240,12 @@ def _dist_matrix_symmetric_normalized(feature_vectors, decomposer):
     gap_matrix = np.zeros((n, n))
     # stats = pd.DataFrame()
 
+    df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
+    tw_start_min = df.start.min()
+    tw_end_max = df.end.max()
+    # rough planning horizon
+    time_horizon = tw_end_max - tw_start_min
+
     for i in range(n):
         for j in range(n):
             if i == j:
@@ -255,6 +265,13 @@ def _dist_matrix_symmetric_normalized(feature_vectors, decomposer):
                 overlap_matrix[i, j] = overlap_matrix[j, i]
                 gap_matrix[i, j] = gap_matrix[j, i]
 
+    # must do this before normalization
+    # and do not normalze bc they're relative ratios
+    relative_tw_width_matrix = max_tw_width_matrix / time_horizon
+    # NOTE: overlap could be > max_tw_width after normalization
+    # even though that's impossible before
+    relative_overlap_matrix = overlap_matrix / max_tw_width_matrix
+
     max_tw_width_matrix = helpers.normalize_matrix(max_tw_width_matrix)
     euclidean_dist_matrix = helpers.normalize_matrix(euclidean_dist_matrix)
     overlap_matrix = helpers.normalize_matrix(overlap_matrix)
@@ -265,11 +282,27 @@ def _dist_matrix_symmetric_normalized(feature_vectors, decomposer):
         'euclidean_dist': euclidean_dist_matrix.flatten(),
         'overlap': overlap_matrix.flatten(),
         'gap': gap_matrix.flatten(),
+
+        'relative_tw_width': relative_tw_width_matrix.flatten(),
+        'relative_overlap': relative_overlap_matrix.flatten(),
     })
-    stats['TD_OL'] = stats['euclidean_dist'] / stats['max_tw_width'] * stats['overlap']
-    stats['STD_OL'] = stats['euclidean_dist'] + stats['TD_OL']
-    stats['TD_G'] = 1 / stats['euclidean_dist'] * stats['gap']
-    stats['STD_G'] = stats['euclidean_dist'] + stats['TD_G']
+
+    '''Formula v1: temporal dist'''
+    # stats['TD_OL'] = stats['euclidean_dist'] / stats['max_tw_width'] * stats['overlap']
+    # stats['dist_OL'] = stats['euclidean_dist'] + stats['TD_OL']
+
+    # stats['TD_G'] = 1 / stats['euclidean_dist'] * stats['gap']
+    # stats['dist_G'] = stats['euclidean_dist'] - stats['TD_G']
+
+    '''Formula v2: temporal weight'''
+    # stats['temp_w8_OL'] = stats['overlap'] / (stats['overlap'] + stats['max_tw_width'])
+
+    '''Formula v3: relative to the planning horizon'''
+    stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
+    stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
+
+    stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
+    stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
 
     '''
     Create a new df column based on condtion:
@@ -296,5 +329,5 @@ def _dist_matrix_symmetric_normalized(feature_vectors, decomposer):
         >>> df.B = df.B.mask(df.B < 0, 0)
     '''
 
-    return stats.round(2)
+    return stats
 

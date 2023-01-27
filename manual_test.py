@@ -133,24 +133,37 @@ def summary_fv(to_excel=False, summary_to_excel=False):
     names = ['C101']
     # names.extend(FOCUS_GROUP_C1)
     # names.extend(FOCUS_GROUP_RC2)
+    norm = False
+
     for instance_name in names:
         _, converted_inst = read_instance(dir_name, instance_name)
 
         decomposer = KMedoidsDecomposer(None, use_gap=True)
-        feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=False)
+        feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
         df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
+        print(df.iloc[0]['x'])
+        print(len(df))
+        # min = df.start.min()
+        # max = df.end.max()
+        # fv_np = np.asarray(feature_vectors.data)
+        # min = fv_np.min(axis=0)[2]
+        # max = fv_np.max(axis=0)[3]
+        # print(f'min: {min}')
+        # print(f'max: {max}')
+        exit()
         df['time_duration'] = df['end'] - df['start']
-        df_desc = df.describe()
+        df_desc = df.describe().round(2)
         df_desc.drop(index=['count', '25%', '50%', '75%'], inplace=True)
         print(f'\n{instance_name}')
         print(df_desc)
         if to_excel:
+            ext = '_norm' if norm else ''
             helpers.make_dirs(TEST_DIR)
             file_name = os.path.join(TEST_DIR, f'FV')
-            helpers.write_to_excel(df, file_name=file_name, sheet_name=instance_name, overlay=False)
+            helpers.write_to_excel(df, file_name=f'{file_name}{ext}', sheet_name=instance_name, overlay=False)
             if summary_to_excel:
                 file_name = os.path.join(TEST_DIR, f'FV_summary')
-                helpers.write_to_excel(df_desc, file_name=file_name, sheet_name=instance_name, overlay=False, index=True)
+                helpers.write_to_excel(df_desc, file_name=f'{file_name}{ext}', sheet_name=instance_name, overlay=False, index=True)
 
 
 def test_pairwise_distance():
@@ -202,16 +215,20 @@ def test_pairwise_distance():
 
 def dist_matrix_to_excel():
     dir_name = SOLOMON
+    'C101'
+    'R202' # -3.6%
+    'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
     dist_matrix_func = DM.v4
-    file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
+    # file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
+    file_name = os.path.join(TEST_DIR, 'no norm')
     gap = False
-    norm = False
+    fv_std = False
 
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_tw=True, use_gap=gap)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=fv_std)
     df = dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
     df_desc = df.describe()
     '''
@@ -230,9 +247,9 @@ def dist_matrix_to_excel():
     # df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
     ext = ''
     ext += '_gap' if gap else ''
-    ext += '_norm' if norm else ''
+    ext += '_fv_std' if fv_std else ''
     helpers.make_dirs(TEST_DIR)
-    helpers.write_to_excel(df, file_name=file_name, sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
+    # helpers.write_to_excel(df, file_name=f'{file_name}{ext}', sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
     print(dist_matrix.shape)
     '''
     Visual inspection for instance C101:
@@ -309,7 +326,7 @@ def test_framework():
 if __name__ == '__main__':
     # test_normalize_matrix()
     # test_get_clusters()
-    # summary_fv(to_excel=True, summary_to_excel=False)
+    # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
     dist_matrix_to_excel()
     # test_decompose()
