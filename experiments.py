@@ -51,6 +51,9 @@ class ExperimentRunner:
         for num_clusters in range(min_clusters, max_clusters + 1):
             # repeat n times bc clustering algorithm may find diff clusters on each run
             for i in range(self.repeat_n_times):
+                # TODO: instead of repeating n times on solver with diff num clusters,
+                # find the most promising num clusters and solve it only once?
+                # what is the most promising num clusters?
                 self.decomp_runner.decomposer.num_clusters = num_clusters
                 solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
                 cost = solution.metrics[METRIC_COST]

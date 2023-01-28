@@ -88,13 +88,13 @@ def list_benchmark_names():
     print(benchmark)
 
 
-def test_normalize_fv():
+def test_standardize_fv():
     fv = [
         [1,2,3,4],
         [4,3,2,1],
         [5,6,7,8],
     ]
-    fv = helpers.normalize_feature_vectors(fv)
+    fv = helpers.standardize_feature_vectors(fv)
     print(fv)
 
 
@@ -139,7 +139,7 @@ def summary_fv(to_excel=False, summary_to_excel=False):
         _, converted_inst = read_instance(dir_name, instance_name)
 
         decomposer = KMedoidsDecomposer(None, use_gap=True)
-        feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
+        feature_vectors = decomposer.build_feature_vectors(converted_inst)
         df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
         print(df.iloc[0]['x'])
         print(len(df))
@@ -170,11 +170,10 @@ def test_pairwise_distance():
     dir_name = SOLOMON
     instance_name = 'C101'
     gap = False
-    norm = False
 
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_tw=True, use_gap=gap)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=norm)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
 
     fv_i = fv[0]
@@ -213,6 +212,34 @@ def test_pairwise_distance():
     print(f'ST dist from PD = {round(pd_std, 2)}')
 
 
+def test_trial_dist_matrix(to_excel=False):
+    dir_name = SOLOMON
+    'C101'
+    'R202' # -3.6%
+    'R209' # -3.77%, # biggest % gain by tw_norm
+    instance_name = 'C101'
+    dist_matrix_func = DM.v2_1
+    file_name = os.path.join(TEST_DIR, f'trial_{dist_matrix_func.__name__}')
+    norm = True
+
+    _, converted_inst = read_instance(dir_name, instance_name)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, normalize=norm)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst)
+    df = decomposer.dist_matrix_func(feature_vectors, decomposer, trial=True)
+    df_desc = df.describe()
+    # df_no_zeros = df.replace(0, np.NaN)
+    # df_desc = df_no_zeros.describe()
+    df_desc.drop(index=['count', '25%', '50%', '75%'], inplace=True)
+    print(f'\n{instance_name}')
+    print(df_desc.round(2))
+
+    if to_excel:
+        ext = ''
+        ext += '_norm' if norm else ''
+        helpers.make_dirs(TEST_DIR)
+        helpers.write_to_excel(df, file_name=f'{file_name}{ext}', sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
+
+
 def dist_matrix_to_excel():
     dir_name = SOLOMON
     'C101'
@@ -220,36 +247,38 @@ def dist_matrix_to_excel():
     'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
-    dist_matrix_func = DM.v4
-    # file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
-    file_name = os.path.join(TEST_DIR, 'no norm')
-    gap = False
-    fv_std = False
+    dist_matrix_func = DM.v2_2
+    file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
+    '''
+    if all 3 are False, it's plain old euclidean
+    if only norm is True, it's normalized euclidean
+    without normalization, gap could reduce dist to unreasonably small values even with new formulas
+    while overlap could increase dist by 50% to almost 100%
+    '''
+    overlap = True
+    gap = True
+    norm = True
+
+    ext = ''
+    ext += '_overlap' if overlap else ''
+    ext += '_gap' if gap else ''
+    ext += '_norm' if norm else ''
 
     _, converted_inst = read_instance(dir_name, instance_name)
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_tw=True, use_gap=gap)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst, use_tw=True, normalize=fv_std)
-    df = dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-    df_desc = df.describe()
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
+    feature_vectors = decomposer.build_feature_vectors(converted_inst)
+    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
     '''
     max_tw_width (by construct) and euclidean_dist (by nature) would only be 0 with itself, so could make sense to remove 0s;
     but overlap and gap could legitimately be 0 b/t node pairs, albeit not very common;
     and overlap with itself is always the full tw_width of itself,
     whereas gap with itself is always 0
     '''
-    # df_no_zeros = df.replace(0, np.NaN)
-    # df_desc = df_no_zeros.describe()
-    df_desc.drop(index=['count', '25%', '50%', '75%'], inplace=True)
-    print(f'\n{instance_name}')
-    print(df_desc.round(2))
-    # dist_matrix = np.array(dist_matrix)
-    # customer_ids = [i for i in range(1, instance_size + 1)]
-    # df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
-    ext = ''
-    ext += '_gap' if gap else ''
-    ext += '_fv_std' if fv_std else ''
+    dist_matrix = np.asarray(dist_matrix)
+    customer_ids = [i for i in range(1, instance_size + 1)]
+    df = pd.DataFrame(dist_matrix, columns=customer_ids, index=customer_ids)
     helpers.make_dirs(TEST_DIR)
-    # helpers.write_to_excel(df, file_name=f'{file_name}{ext}', sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
+    helpers.write_to_excel(df, file_name=f'{file_name}{ext}', sheet_name=f'{instance_name}{ext}', overlay=False, index=True)
     print(dist_matrix.shape)
     '''
     Visual inspection for instance C101:
@@ -328,6 +357,7 @@ if __name__ == '__main__':
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
+    # test_trial_dist_matrix()
     dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
