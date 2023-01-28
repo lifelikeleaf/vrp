@@ -25,7 +25,7 @@ class BaseDecomposer(AbstractDecomposer):
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
-    def __init__(self, name=None, num_clusters=2, use_tw=False, normalize=False) -> None:
+    def __init__(self, name=None, num_clusters=2, standardize=False) -> None:
         """
         Parameters
         ----------
@@ -39,49 +39,43 @@ class BaseDecomposer(AbstractDecomposer):
                 Number of clusters to decompose the VRP problem instance into.
                 Default is 2.
 
-            use_tw: bool
-                True if time windows should be included in features, else False.
-                Default is False.
-
-            normalize: bool
+            standardize: bool
                 True if feature vectors should be z standardized, else False.
                 Default is False.
 
         """
         self.name = name
         self.num_clusters = num_clusters
-        self.use_tw = use_tw # TODO: remove
-        self.normalize = normalize
+        self.standardize = standardize
 
 
     @staticmethod
     @lru_cache(maxsize=1)
-    def build_feature_vectors(inst, use_tw, normalize) -> FV:
+    def build_feature_vectors(inst, standardize=False) -> FV:
         """Build feature vectors for clustering from VRP problem instance.
         A list of feature vectors representing the customer nodes
         to be clustered, excluding the depot.
         """
-        feature_vectors = []
+        fv_data = []
         nodes = inst.nodes
         for i in range(len(nodes)):
             row = []
             # x, y coords for customer i
             row.append(nodes[i].x_coord)
             row.append(nodes[i].y_coord)
-            # TODO: remove this check and return consistent FV format
-            if use_tw:
-                # earliest service start time for customer i
-                row.append(nodes[i].start_time)
-                # lastest service start time for customer i
-                row.append(nodes[i].end_time)
-            feature_vectors.append(row)
+            # earliest service start time for customer i
+            row.append(nodes[i].start_time)
+            # lastest service start time for customer i
+            row.append(nodes[i].end_time)
 
-        if normalize:
-            feature_vectors = helpers.normalize_feature_vectors(feature_vectors)
+            fv_data.append(row)
+
+        if standardize:
+            fv_data = helpers.standardize_feature_vectors(fv_data)
 
         # By CVRPLIB convention, index 0 is always depot;
         # depot should not be clustered
-        return __class__.FV(feature_vectors[1:])
+        return __class__.FV(fv_data[1:])
 
 
     def get_clusters(self, labels):
@@ -129,10 +123,11 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         dist_matrix_func,
         name=None,
         num_clusters=2,
-        use_tw=False,
-        normalize=False,
+        standardize=False,
+        use_overlap=False,
         use_gap=False,
-        minimize_wait_time=False
+        normalize=False,
+        minimize_wait_time=False,
     ) -> None:
         """
         Parameters
@@ -141,18 +136,33 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
             A callable that returns a distance matrix.
 
         Optional:
+            use_overlap: bool
+                Whether to consider overlap b/t time windows for spatial
+                temporal distance calculation.
+                Default is False.
+
             use_gap: bool
-                Whether to consider gap b/t time windows for temporal_weight.
+                Whether to consider gap b/t time windows for spatial
+                temporal distance calculation.
+                Default is False.
+
+            normalize: bool
+                True if min-max scaling should be used for distance matrix
+                calculation, else False.
                 Default is False.
 
             minimize_wait_time: bool
                 Whether to minimize wait time in objective function.
+                This flag should only be used if the underlying solver
+                considers wait time in its objective function.
                 Default is False.
 
         """
-        super().__init__(name, num_clusters, use_tw, normalize)
+        super().__init__(name, num_clusters, standardize)
         self.dist_matrix_func = dist_matrix_func
+        self.use_overlap = use_overlap
         self.use_gap = use_gap
+        self.normalize = normalize
         self.minimize_wait_time = minimize_wait_time
 
 
@@ -160,11 +170,11 @@ class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     @helpers.log_run_time
     def decompose(self, inst):
-        feature_vectors = self.build_feature_vectors(inst, self.use_tw, self.normalize)
+        fv = self.build_feature_vectors(inst, standardize=False)
         logger.info('')
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
-        kmeans.fit(feature_vectors.data)
+        kmeans.fit(fv.data)
         labels = kmeans.labels_
         return self.get_clusters(labels)
 
@@ -173,29 +183,22 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     @helpers.log_run_time
     def decompose(self, inst):
-        feature_vectors = self.build_feature_vectors(inst, self.use_tw, self.normalize)
+        fv = self.build_feature_vectors(inst)
 
         logger.info('')
         logger.info('Running k-medoids...')
-        if self.use_tw:
-            logger.info('using time windows...')
-            # for 'precomputed' must pass the fit() method a distance matrix
-            # instead of a feature vector
-            metric = 'precomputed'
-            X = self.dist_matrix_func(feature_vectors, self)
-            # TODO: dump dist_matrix to excel
-            # instance_name
-            # experiment_name = self.name
-        else:
-            # TODO: use DM.euclidean
-            metric = 'euclidean' #  or a callable
-            X = feature_vectors.data
-
+        logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
+        if self.use_overlap:
+            logger.info('considering overlap...')
         if self.use_gap:
-            logger.info('and gap...')
+            logger.info('considering gap...')
         if self.minimize_wait_time:
-            logger.info('and minimize wait time...')
+            logger.info('minimizing wait time...')
 
+        # for 'precomputed' must pass the fit() method a distance matrix
+        # instead of a feature vector
+        metric = 'precomputed'
+        X = self.dist_matrix_func(fv, self)
         method = 'pam'
         # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
         init = 'k-medoids++'
@@ -216,17 +219,14 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     @helpers.log_run_time
     def decompose(self, inst):
-        feature_vectors = self.build_feature_vectors(inst, self.use_tw, self.normalize)
+        fv = self.build_feature_vectors(inst)
         logger.info('')
         logger.info('Running Affinity Propogation...')
-        if self.use_tw:
-            logger.info('using time windows...')
-            affinity = 'precomputed'
-            # affinity matrix is the negative of distance matrix
-            X = -1 * self.dist_matrix_func(feature_vectors, self)
-        else:
-            affinity = 'euclidean'
-            X = feature_vectors.data
+        logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
+        affinity = 'precomputed'
+        # affinity matrix is the negative of distance matrix
+        X = -1 * self.dist_matrix_func(fv, self)
+
         ap = AP(affinity=affinity).fit(X)
         labels = ap.labels_
         # AP doesn't need num_clusters as an initial parameter,
