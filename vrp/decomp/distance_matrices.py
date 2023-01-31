@@ -13,24 +13,24 @@ def v1(feature_vectors, decomposer):
     return _dist_matrix_symmetric(feature_vectors, decomposer, _pairwise_dist_v1)
 
 
-def v2_1(feature_vectors, decomposer, trial=False):
+def v2_1(feature_vectors, decomposer):
     '''temporal weight'''
-    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_1, trial=trial)
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_1)
 
 
-def v2_2(feature_vectors, decomposer, trial=False):
+def v2_2(feature_vectors, decomposer):
     '''temporal weight'''
-    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_2, trial=trial)
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_2)
 
 
-def v2_3(feature_vectors, decomposer, trial=False):
+def v2_3(feature_vectors, decomposer):
     '''temporal weight'''
-    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_3, trial=trial)
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_3)
 
 
-def v2_4(feature_vectors, decomposer, trial=False):
+def v2_4(feature_vectors, decomposer):
     '''temporal weight'''
-    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_4, trial=trial)
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_4)
 
 
 def v3(feature_vectors, decomposer):
@@ -179,27 +179,6 @@ def _pairwise_dist_v2_3(stats, decomposer):
     '''Formula v2.3: limit weight up to 50%'''
     return _pairwise_dist_v2_2(stats, decomposer, weight_limit=0.5)
 
-    # overlap = stats['overlap']
-    # relative_overlap = stats['relative_overlap']
-    # relative_tw_width = stats['relative_tw_width']
-    # gap = stats['gap']
-    # euclidean_dist = stats['euclidean_dist']
-
-    # temporal_weight = 0
-    # spatial_temporal_dist = euclidean_dist
-    # if overlap > 0 and decomposer.use_overlap:
-    #     temporal_weight = relative_overlap * (1 - relative_tw_width) * 0.5
-    #     spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
-    # elif gap > 0 and decomposer.use_gap:
-    #     # temporal_weight = gap / (gap + euclidean_dist)
-    #     temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist)) * 0.5
-    #     spatial_temporal_dist = euclidean_dist * (1 - temporal_weight)
-
-    #     if decomposer.minimize_wait_time:
-    #         spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
-
-    # return spatial_temporal_dist
-
 
 def _pairwise_dist_v2_4(stats, decomposer):
     '''Formula v2.4: limit weight up to 30%'''
@@ -338,22 +317,19 @@ def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer):
     dist_matrix += dist_matrix.T
     return dist_matrix
 
-    # stats_matrix = {
+    # constituents_matrix = {
     #     'overlap': overlap_matrix,
     #     'max_tw_width': max_tw_width_matrix,
     #     'gap': gap_matrix,
     #     'euclidean_dist': euclidean_dist_matrix,
     # }
-    # stats_df = pd.DataFrame({key: val.flatten() for key, val in stats_matrix.items()})
+    # stats_df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
     # return stats_df
 
 
-@lru_cache(maxsize=1)
-@helpers.log_run_time
-def _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, pairwise_dist_callable, trial=False):
+def _get_constituents_matrix(feature_vectors, decomposer):
     fv = feature_vectors.data
     n = len(fv)
-    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
     max_tw_width_matrix = np.zeros((n, n))
     euclidean_dist_matrix = np.zeros((n, n))
     overlap_matrix = np.zeros((n, n))
@@ -366,7 +342,7 @@ def _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, pairwise_di
     # rough planning horizon
     time_horizon = tw_end_max - tw_start_min
 
-    # get pairwise constituents first, for normalization and trial purposes
+    # get pairwise constituents, for normalization purposes
     for i in range(n):
         for j in range(n):
             if i == j:
@@ -407,56 +383,38 @@ def _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, pairwise_di
         overlap_matrix = helpers.normalize_matrix(overlap_matrix)
         gap_matrix = helpers.normalize_matrix(gap_matrix)
 
-    stats_matrix = {
+    constituents_matrix = {
         # v2.1
         'overlap': overlap_matrix,
         'max_tw_width': max_tw_width_matrix,
-        # v2.2
+        # v2.2+
         'relative_overlap': relative_overlap_matrix,
         'relative_tw_width': relative_tw_width_matrix,
         'gap': gap_matrix,
         'euclidean_dist': euclidean_dist_matrix,
     }
 
-    if not trial:
-        # get distance matrix
-        for i in range(n):
-            for j in range(n):
-                if i == j:
-                    continue
-                elif i < j:
-                    pairwise_stats = {key: val[i, j] for key, val in stats_matrix.items()}
-                    dist_matrix[i, j] = pairwise_dist_callable(pairwise_stats, decomposer)
-                else: # i > j
-                    dist_matrix[i, j] = dist_matrix[j, i]
-
-        return dist_matrix
-    else:
-        # flatten bc per-column arrays must each be 1-dimensional
-        stats_df = pd.DataFrame({key: val.flatten() for key, val in stats_matrix.items()})
-        return _trial_dist_matrix_symmetric(stats_df)
+    return constituents_matrix
 
 
-def _trial_dist_matrix_symmetric(stats):
-    '''Formula v1: temporal dist'''
-    # stats['TD_OL'] = stats['euclidean_dist'] / stats['max_tw_width'] * stats['overlap']
-    # stats['dist_OL'] = stats['euclidean_dist'] + stats['TD_OL']
+@lru_cache(maxsize=1)
+@helpers.log_run_time
+def _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, pairwise_dist_callable):
+    fv = feature_vectors.data
+    n = len(fv)
+    constituents_matrix = _get_constituents_matrix(feature_vectors, decomposer)
+    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
 
-    ## gap could be so large that even with normalization dist_G would be driven to < 0
-    # stats['TD_G'] = 1 / stats['euclidean_dist'] * stats['gap']
-    # stats['dist_G'] = stats['euclidean_dist'] - stats['TD_G']
+    # get distance matrix
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            elif i < j:
+                pairwise_stats = {key: val[i, j] for key, val in constituents_matrix.items()}
+                dist_matrix[i, j] = pairwise_dist_callable(pairwise_stats, decomposer)
+            else: # i > j
+                dist_matrix[i, j] = dist_matrix[j, i]
 
-    '''Formula v2.1: temporal weight'''
-    ## up to ~50% weight bc by definition overlap <= max_tw_width
-    ## even though after normalization it could be a little higher
-    # stats['temp_w8_OL'] = stats['overlap'] / (stats['overlap'] + stats['max_tw_width'])
-
-    '''Formula v2.2: relative to the planning horizon'''
-    # stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
-    # stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
-
-    # stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
-    # stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
-
-    return stats
+    return dist_matrix
 

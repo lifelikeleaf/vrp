@@ -212,20 +212,46 @@ def test_pairwise_distance():
     print(f'ST dist from PD = {round(pd_std, 2)}')
 
 
-def test_trial_dist_matrix(to_excel=False):
+def trial_formulas(stats):
+    '''Formula v1: temporal dist'''
+    # stats['TD_OL'] = stats['euclidean_dist'] / stats['max_tw_width'] * stats['overlap']
+    # stats['dist_OL'] = stats['euclidean_dist'] + stats['TD_OL']
+
+    ## gap could be so large that even with normalization dist_G would be driven to < 0
+    # stats['TD_G'] = 1 / stats['euclidean_dist'] * stats['gap']
+    # stats['dist_G'] = stats['euclidean_dist'] - stats['TD_G']
+
+    '''Formula v2.1: temporal weight'''
+    ## up to ~50% weight bc by definition overlap <= max_tw_width
+    ## even though after normalization it could be a little higher
+    # stats['temp_w8_OL'] = stats['overlap'] / (stats['overlap'] + stats['max_tw_width'])
+
+    '''Formula v2.2: relative to the planning horizon'''
+    stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
+    stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
+
+    stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
+    stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
+
+    return stats
+
+
+def test_get_constituents_matrix(to_excel=False):
     dir_name = SOLOMON
     'C101'
     'R202' # -3.6%
     'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
-    dist_matrix_func = DM.v2_1
-    file_name = os.path.join(TEST_DIR, f'trial_{dist_matrix_func.__name__}')
+    file_name = os.path.join(TEST_DIR, 'stats_matrix')
     norm = True
 
     _, converted_inst = read_instance(dir_name, instance_name)
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, normalize=norm)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=norm)
     feature_vectors = decomposer.build_feature_vectors(converted_inst)
-    df = decomposer.dist_matrix_func(feature_vectors, decomposer, trial=True)
+    constituents_matrix = DM._get_constituents_matrix(feature_vectors, decomposer)
+    # flatten bc per-column arrays must each be 1-dimensional
+    constituents_df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
+    df = trial_formulas(constituents_df)
     df_desc = df.describe()
     # df_no_zeros = df.replace(0, np.NaN)
     # df_desc = df_no_zeros.describe()
@@ -247,7 +273,7 @@ def dist_matrix_to_excel():
     'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
-    dist_matrix_func = DM.v2_2
+    dist_matrix_func = DM.v1
     file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
     '''
     if all 3 are False, it's plain old euclidean
@@ -257,7 +283,7 @@ def dist_matrix_to_excel():
     '''
     overlap = True
     gap = True
-    norm = True
+    norm = False
 
     ext = ''
     ext += '_overlap' if overlap else ''
@@ -357,8 +383,8 @@ if __name__ == '__main__':
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
-    # test_trial_dist_matrix()
-    dist_matrix_to_excel()
+    test_get_constituents_matrix()
+    # dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
 
