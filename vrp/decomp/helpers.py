@@ -49,6 +49,7 @@ def standardize_feature_vectors(fv):
     if not isinstance(fv, np.ndarray):
         fv = np.array(fv)
     # axis=0 -> row axis, runs down the rows, i.e. calculate the mean for each column/feature
+    # aggregate over rows, within each column
     mean = np.mean(fv, axis=0)
     # ddof=1 -> degrees of freedom = N-1, i.e. sample std
     # ddof = 'delta degrees of freedom'

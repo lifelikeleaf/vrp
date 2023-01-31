@@ -23,6 +23,20 @@ def v2_2(feature_vectors, decomposer, trial=False):
     return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_2, trial=trial)
 
 
+def v2_3(feature_vectors, decomposer, trial=False):
+    '''temporal weight'''
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_3, trial=trial)
+
+
+def v2_4(feature_vectors, decomposer, trial=False):
+    '''temporal weight'''
+    return _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, _pairwise_dist_v2_4, trial=trial)
+
+
+def v3(feature_vectors, decomposer):
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer)
+
+
 def euclidean(feature_vectors, decomposer):
     return _dist_matrix_symmetric(feature_vectors, decomposer, _pairwise_euclidean_dist)
 
@@ -136,7 +150,7 @@ def _pairwise_dist_v2_1(stats, decomposer):
     return spatial_temporal_dist
 
 
-def _pairwise_dist_v2_2(stats, decomposer):
+def _pairwise_dist_v2_2(stats, decomposer, weight_limit=1):
     '''Formula v2.2: tw relative to the planning horizon, overlap relative to tw'''
     overlap = stats['overlap']
     relative_overlap = stats['relative_overlap']
@@ -148,17 +162,48 @@ def _pairwise_dist_v2_2(stats, decomposer):
     spatial_temporal_dist = euclidean_dist
     if overlap > 0 and decomposer.use_overlap:
         # TODO: refactor? this is the only line that differs b/t v2.1 and v2.2
-        temporal_weight = relative_overlap * (1 - relative_tw_width)
+        temporal_weight = relative_overlap * (1 - relative_tw_width) * weight_limit
         spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
     elif gap > 0 and decomposer.use_gap:
         # temporal_weight = gap / (gap + euclidean_dist)
-        temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist))
+        temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist)) * weight_limit
         spatial_temporal_dist = euclidean_dist * (1 - temporal_weight)
 
         if decomposer.minimize_wait_time:
             spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
 
     return spatial_temporal_dist
+
+
+def _pairwise_dist_v2_3(stats, decomposer):
+    '''Formula v2.3: limit weight up to 50%'''
+    return _pairwise_dist_v2_2(stats, decomposer, weight_limit=0.5)
+
+    # overlap = stats['overlap']
+    # relative_overlap = stats['relative_overlap']
+    # relative_tw_width = stats['relative_tw_width']
+    # gap = stats['gap']
+    # euclidean_dist = stats['euclidean_dist']
+
+    # temporal_weight = 0
+    # spatial_temporal_dist = euclidean_dist
+    # if overlap > 0 and decomposer.use_overlap:
+    #     temporal_weight = relative_overlap * (1 - relative_tw_width) * 0.5
+    #     spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
+    # elif gap > 0 and decomposer.use_gap:
+    #     # temporal_weight = gap / (gap + euclidean_dist)
+    #     temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist)) * 0.5
+    #     spatial_temporal_dist = euclidean_dist * (1 - temporal_weight)
+
+    #     if decomposer.minimize_wait_time:
+    #         spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
+
+    # return spatial_temporal_dist
+
+
+def _pairwise_dist_v2_4(stats, decomposer):
+    '''Formula v2.4: limit weight up to 30%'''
+    return _pairwise_dist_v2_2(stats, decomposer, weight_limit=0.3)
 
 
 def _pairwise_euclidean_dist(node_i, node_j, decomposer):
@@ -207,6 +252,100 @@ def _dist_matrix_symmetric(feature_vectors, decomposer, pairwise_dist_callable):
                 dist_matrix[i, j] = dist_matrix[j, i]
 
     return dist_matrix
+
+
+@lru_cache(maxsize=1)
+@helpers.log_run_time
+def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer):
+    fv = np.asarray(feature_vectors.data)
+    n = len(fv)
+    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
+
+    # upper triangle indices of a n x n matrix
+    # skip the main diagonal (k=1) bc dist to self is zero
+    i, j = np.triu_indices(n, k=1)
+    
+    nodes_i = fv[i]
+    nodes_j = fv[j]
+
+    x_coords_i = nodes_i[:, 0]
+    y_coords_i = nodes_i[:, 1]
+    start_times_i = nodes_i[:, 2]
+    end_times_i = nodes_i[:, 3]
+
+    x_coords_j = nodes_j[:, 0]
+    y_coords_j = nodes_j[:, 1]
+    start_times_j = nodes_j[:, 2]
+    end_times_j = nodes_j[:, 3]
+
+    tw_widths_i = end_times_i - start_times_i
+    tw_widths_j = end_times_j - start_times_j
+
+    max_tw_widths = np.maximum(tw_widths_i, tw_widths_j)
+    euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2)
+    overlaps_or_gaps = np.minimum(end_times_i, end_times_j) - np.maximum(start_times_i, start_times_j)
+    overlaps = np.where(overlaps_or_gaps > 0, overlaps_or_gaps, 0)
+    gaps = np.where(overlaps_or_gaps < 0, np.absolute(overlaps_or_gaps), 0)
+
+    '''
+    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
+    max_tw_width_matrix = np.zeros((n, n))
+    euclidean_dist_matrix = np.zeros((n, n))
+    overlap_matrix = np.zeros((n, n))
+    gap_matrix = np.zeros((n, n))
+
+    # fill the upper triangle
+    max_tw_width_matrix[i, j] = max_tw_widths
+    euclidean_dist_matrix[i, j] = euclidean_dists
+    overlap_matrix[i, j] = overlaps
+    gap_matrix[i, j] = gaps
+
+    # fill the lower triangle
+    max_tw_width_matrix = max_tw_width_matrix + max_tw_width_matrix.T
+    euclidean_dist_matrix = euclidean_dist_matrix + euclidean_dist_matrix.T
+    overlap_matrix = overlap_matrix + overlap_matrix.T
+    gap_matrix = gap_matrix + gap_matrix.T
+    #'''
+
+    temporal_dists = 0
+
+    if decomposer.use_overlap:
+        # temporal_dist = euclidean_dist / max_tw_width * overlap = overlap / max_tw_width * euclidean_dist
+        temporal_dists = np.divide(
+            euclidean_dists,
+            max_tw_widths,
+            out=np.zeros_like(euclidean_dists),
+            where=(max_tw_widths != 0)
+        ) * overlaps
+    
+    if decomposer.use_gap:
+        # temporal_dist = -1 * gap / euclidean_dist
+        temporal_dists += np.divide(
+            1,
+            euclidean_dists,
+            out=np.zeros_like(euclidean_dists),
+            where=(euclidean_dists != 0)
+        ) * gaps * -1
+
+        if decomposer.minimize_wait_time:
+            # temporal_dist = gap / euclidean_dist
+            temporal_dists = np.absolute(temporal_dists)
+
+    spatial_temporal_dists = euclidean_dists + temporal_dists
+    # only non-negative distances are valid
+    spatial_temporal_dists = np.maximum(0, spatial_temporal_dists)
+    dist_matrix[i, j] = spatial_temporal_dists
+    dist_matrix += dist_matrix.T
+    return dist_matrix
+
+    # stats_matrix = {
+    #     'overlap': overlap_matrix,
+    #     'max_tw_width': max_tw_width_matrix,
+    #     'gap': gap_matrix,
+    #     'euclidean_dist': euclidean_dist_matrix,
+    # }
+    # stats_df = pd.DataFrame({key: val.flatten() for key, val in stats_matrix.items()})
+    # return stats_df
 
 
 @lru_cache(maxsize=1)
@@ -313,11 +452,11 @@ def _trial_dist_matrix_symmetric(stats):
     # stats['temp_w8_OL'] = stats['overlap'] / (stats['overlap'] + stats['max_tw_width'])
 
     '''Formula v2.2: relative to the planning horizon'''
-    stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
-    stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
+    # stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
+    # stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
 
-    stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
-    stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
+    # stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
+    # stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
 
     return stats
 

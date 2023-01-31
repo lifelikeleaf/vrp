@@ -1,4 +1,4 @@
-"""A mini framework for decomposition of VRP and VRPTW problems.
+"""A minimal framework for decomposition of VRP and VRPTW problems.
 
 This work only considers a single depot and homogeneous fleet, but users could
 extend it to include multi-depot and/or heterogeneous fleet problems as well.
