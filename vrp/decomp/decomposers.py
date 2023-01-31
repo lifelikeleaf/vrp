@@ -4,6 +4,7 @@ from sklearn.cluster import AffinityPropagation as AP
 from sklearn.metrics import pairwise_distances
 from sklearn_extra.cluster import KMedoids
 from scipy.spatial.distance import euclidean
+import numpy as np
 
 from .decomposition import AbstractDecomposer
 from . import helpers
@@ -69,6 +70,8 @@ class BaseDecomposer(AbstractDecomposer):
             row.append(nodes[i].end_time)
 
             fv_data.append(row)
+
+        fv_data = np.asarray(fv_data)
 
         if standardize:
             fv_data = helpers.standardize_feature_vectors(fv_data)
