@@ -227,11 +227,11 @@ def trial_formulas(stats):
     # stats['temp_w8_OL'] = stats['overlap'] / (stats['overlap'] + stats['max_tw_width'])
 
     '''Formula v2.2: relative to the planning horizon'''
-    stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
-    stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
+    # stats['temp_w8_OL'] = stats['relative_overlap'] * (1 - stats['relative_tw_width'])
+    # stats['dist_OL'] = stats['euclidean_dist'] * (1 + stats['temp_w8_OL'])
 
-    stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
-    stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
+    # stats['temp_w8_G'] = stats['gap'] / (stats['gap'] + stats['euclidean_dist'])
+    # stats['dist_G'] = stats['euclidean_dist'] * (1 - stats['temp_w8_G'])
 
     return stats
 
@@ -248,7 +248,11 @@ def test_get_constituents_matrix(to_excel=False):
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=norm)
     feature_vectors = decomposer.build_feature_vectors(converted_inst)
-    constituents_matrix = DM._get_constituents_matrix(feature_vectors, decomposer)
+    fv = feature_vectors.data
+
+    # constituents_matrix = DM._get_constituents_matrix(fv, decomposer)
+    constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=True)
+
     # flatten bc per-column arrays must each be 1-dimensional
     constituents_df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
     df = trial_formulas(constituents_df)
@@ -273,7 +277,7 @@ def dist_matrix_to_excel():
     'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
-    dist_matrix_func = DM.v1
+    dist_matrix_func = DM.v2_4_vectorized
     file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
     '''
     if all 3 are False, it's plain old euclidean
@@ -283,7 +287,7 @@ def dist_matrix_to_excel():
     '''
     overlap = True
     gap = True
-    norm = False
+    norm = True
 
     ext = ''
     ext += '_overlap' if overlap else ''
@@ -383,8 +387,8 @@ if __name__ == '__main__':
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
-    test_get_constituents_matrix()
-    # dist_matrix_to_excel()
+    # test_get_constituents_matrix()
+    dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
 
