@@ -1,11 +1,12 @@
 import os
 import argparse
 import math
-import numpy as np
 import time
 from typing import Callable
 import json
+from functools import lru_cache
 
+import numpy as np
 import pandas as pd
 import openpyxl as xl
 
@@ -210,4 +211,44 @@ def make_dirs(dir_name):
     # make sure the parent directory exists
     dir_name = os.path.join(dir_name, 'placeholder_file_name')
     os.makedirs(os.path.dirname(dir_name), exist_ok=True)
+
+
+@lru_cache(maxsize=1)
+def build_feature_vectors(inst, standardize=False):
+    """Build feature vectors for clustering from VRP problem instance.
+    A list of feature vectors representing the customer nodes
+    to be clustered, excluding the depot.
+    """
+
+    class FV():
+        """lru_cache requires function arguments to be hashable.
+        Wrap a feature_vectors NDArray inside a user defined class
+        to make it hashable.
+        """
+        def __init__(self, data: np.ndarray) -> None:
+            self.data = data
+
+
+    fv_data = []
+    nodes = inst.nodes
+    for i in range(len(nodes)):
+        row = []
+        # x, y coords for customer i
+        row.append(nodes[i].x_coord)
+        row.append(nodes[i].y_coord)
+        # earliest service start time for customer i
+        row.append(nodes[i].start_time)
+        # lastest service start time for customer i
+        row.append(nodes[i].end_time)
+
+        fv_data.append(row)
+
+    fv_data = np.asarray(fv_data)
+
+    if standardize:
+        fv_data = standardize_feature_vectors(fv_data)
+
+    # By CVRPLIB convention, index 0 is always depot;
+    # depot should not be clustered
+    return FV(fv_data[1:])
 

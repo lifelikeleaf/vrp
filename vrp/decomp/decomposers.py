@@ -1,10 +1,6 @@
-from functools import lru_cache
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
-from sklearn.metrics import pairwise_distances
 from sklearn_extra.cluster import KMedoids
-from scipy.spatial.distance import euclidean
-import numpy as np
 
 from .decomposition import AbstractDecomposer
 from . import helpers
@@ -13,16 +9,6 @@ from .logger import logger
 logger = logger.getChild(__name__)
 
 class BaseDecomposer(AbstractDecomposer):
-
-    class FV():
-        """lru_cache requires function arguments to be hashable.
-        Wrap a feature_vectors list inside a user defined class
-        to make it hashable.
-        """
-        def __init__(self, data: list) -> None:
-            self.data = data
-
-
     """Abstract base class that implements some common methods used by
     all decomposers implemented in this module.
     """
@@ -50,38 +36,7 @@ class BaseDecomposer(AbstractDecomposer):
         self.standardize = standardize
 
 
-    @staticmethod
-    @lru_cache(maxsize=1)
-    def build_feature_vectors(inst, standardize=False) -> FV:
-        """Build feature vectors for clustering from VRP problem instance.
-        A list of feature vectors representing the customer nodes
-        to be clustered, excluding the depot.
-        """
-        fv_data = []
-        nodes = inst.nodes
-        for i in range(len(nodes)):
-            row = []
-            # x, y coords for customer i
-            row.append(nodes[i].x_coord)
-            row.append(nodes[i].y_coord)
-            # earliest service start time for customer i
-            row.append(nodes[i].start_time)
-            # lastest service start time for customer i
-            row.append(nodes[i].end_time)
-
-            fv_data.append(row)
-
-        fv_data = np.asarray(fv_data)
-
-        if standardize:
-            fv_data = helpers.standardize_feature_vectors(fv_data)
-
-        # By CVRPLIB convention, index 0 is always depot;
-        # depot should not be clustered
-        return __class__.FV(fv_data[1:])
-
-
-    def get_clusters(self, labels):
+    def get_clusters(self, labels, inertia=0):
         # array index in labels are customer IDs,
         # value at a given index is the cluster ID.
 
@@ -112,7 +67,7 @@ class BaseDecomposer(AbstractDecomposer):
         assert num_clusters == len(list_clusters)
         logger.info(f'Num clusters found: {num_clusters}')
         # TODO: dump to json?
-        logger.debug(f'Clusters found:')
+        logger.debug(f'Clusters found (with inertia = {inertia}):')
         for i, cluster in enumerate(list_clusters):
             logger.debug(f'cluster {i}: \n{cluster}')
 
@@ -173,7 +128,7 @@ class KMeansDecomposer(BaseDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.KMeans.html
     @helpers.log_run_time
     def decompose(self, inst):
-        fv = self.build_feature_vectors(inst, standardize=False)
+        fv = helpers.build_feature_vectors(inst, standardize=False)
         logger.info('')
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
@@ -186,7 +141,7 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn-extra.readthedocs.io/en/stable/generated/sklearn_extra.cluster.KMedoids.html
     @helpers.log_run_time
     def decompose(self, inst):
-        fv = self.build_feature_vectors(inst)
+        fv = helpers.build_feature_vectors(inst)
 
         logger.info('')
         logger.info('Running k-medoids...')
@@ -205,24 +160,27 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
         method = 'pam'
         # {‘random’, ‘heuristic’, ‘k-medoids++’, ‘build’}, default='build'
         init = 'k-medoids++'
+        max_iter = 600 # default = 300
 
         logger.debug(f'Num clusters pass into KMedoids: {self.num_clusters}')
         kmedoids = KMedoids(
             n_clusters=self.num_clusters,
             metric=metric,
             method=method,
-            init=init
+            init=init,
+            max_iter=max_iter,
         )
         kmedoids.fit(X)
         labels = kmedoids.labels_
-        return self.get_clusters(labels)
+        inertia = kmedoids.inertia_
+        return self.get_clusters(labels, inertia)
 
 
 class APDecomposer(BaseDistanceMatrixBasedDecomposer):
     # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html
     @helpers.log_run_time
     def decompose(self, inst):
-        fv = self.build_feature_vectors(inst)
+        fv = helpers.build_feature_vectors(inst)
         logger.info('')
         logger.info('Running Affinity Propogation...')
         logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
