@@ -138,8 +138,7 @@ def summary_fv(to_excel=False, summary_to_excel=False):
     for instance_name in names:
         _, converted_inst = read_instance(dir_name, instance_name)
 
-        decomposer = KMedoidsDecomposer(None, use_gap=True)
-        feature_vectors = decomposer.build_feature_vectors(converted_inst)
+        feature_vectors = helpers.build_feature_vectors(converted_inst)
         df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
         print(df.iloc[0]['x'])
         print(len(df))
@@ -173,7 +172,7 @@ def test_pairwise_distance():
 
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_tw=True, use_gap=gap)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst)
+    feature_vectors = helpers.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
 
     fv_i = fv[0]
@@ -236,7 +235,34 @@ def trial_formulas(stats):
     return stats
 
 
-def test_get_constituents_matrix(to_excel=False):
+def analyze_overlap_gap():
+    dir_name = HG
+    input = {
+        'focus_C1': FOCUS_GROUP_C1,
+        # 'focus_C2': FOCUS_GROUP_C2,
+        'focus_R1': FOCUS_GROUP_R1,
+        # 'focus_R2': FOCUS_GROUP_R2,
+        # 'focus_RC1': FOCUS_GROUP_RC1,
+        'focus_RC2': FOCUS_GROUP_RC2,
+    }
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
+    for val in input.values():
+        for instance_name in val:
+            _, converted_inst = read_instance(dir_name, instance_name)
+            feature_vectors = helpers.build_feature_vectors(converted_inst)
+            fv = feature_vectors.data
+            constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=True)
+            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
+            overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
+            gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
+            overlap_p = overlap_count / df['overlap'].count()
+            gap_p = gap_count / df['gap'].count()
+            print(f'\n{instance_name}')
+            print(f'overlap % = {round(overlap_p * 100, 2)}%')
+            print(f'gap % = {round(gap_p * 100, 2)}%')
+
+
+def test_get_constituents(to_excel=False):
     dir_name = SOLOMON
     'C101'
     'R202' # -3.6%
@@ -247,7 +273,7 @@ def test_get_constituents_matrix(to_excel=False):
 
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=norm)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst)
+    feature_vectors = helpers.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
 
     # constituents_matrix = DM._get_constituents_matrix(fv, decomposer)
@@ -277,7 +303,7 @@ def dist_matrix_to_excel():
     'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
-    dist_matrix_func = DM.v2_4_vectorized
+    dist_matrix_func = DM.v2_6_vectorized
     file_name = os.path.join(TEST_DIR, f'DM_{dist_matrix_func.__name__}')
     '''
     if all 3 are False, it's plain old euclidean
@@ -285,7 +311,7 @@ def dist_matrix_to_excel():
     without normalization, gap could reduce dist to unreasonably small values even with new formulas
     while overlap could increase dist by 50% to almost 100%
     '''
-    overlap = True
+    overlap = False
     gap = True
     norm = True
 
@@ -296,7 +322,7 @@ def dist_matrix_to_excel():
 
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
-    feature_vectors = decomposer.build_feature_vectors(converted_inst)
+    feature_vectors = helpers.build_feature_vectors(converted_inst)
     dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
     '''
     max_tw_width (by construct) and euclidean_dist (by nature) would only be 0 with itself, so could make sense to remove 0s;
@@ -387,7 +413,8 @@ if __name__ == '__main__':
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
-    # test_get_constituents_matrix()
+    # test_get_constituents()
+    # analyze_overlap_gap()
     dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
