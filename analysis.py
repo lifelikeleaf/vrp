@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
 import openpyxl as xl
 from openpyxl.styles import PatternFill
@@ -7,8 +9,9 @@ from openpyxl.utils.cell import get_column_letter
 import vrp.decomp.helpers as helpers
 from vrp.decomp.constants import *
 
+num_subprobs = np.array([])
 
-def get_best_found(df) -> pd.DataFrame:
+def get_best_found(df, name) -> pd.DataFrame:
     x = df.loc[
         # 1. group by instance name
         # 2. get the index of the min cost within each group
@@ -23,7 +26,17 @@ def get_best_found(df) -> pd.DataFrame:
         .loc[:, [KEY_INSTANCE_NAME, KEY_NUM_SUBPROBS, KEY_COST_WAIT]]
 
     best_found = pd.merge(x, y, on=[KEY_INSTANCE_NAME], suffixes=['_cost', '_cost_wait'])
+
+    print(f'\n{name}')
+    print(best_found)
+    global num_subprobs
+    num_subprobs = np.append(num_subprobs, best_found['num_subprobs_cost'].values)
+
     return best_found
+
+
+def get_avg(df):
+    pass
 
 
 def percent_diff(col1, col2):
@@ -31,22 +44,32 @@ def percent_diff(col1, col2):
     return percent
 
 
-def dump_comparison_data(exp_names, dir_name, sub_dir, output_name):
+def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, print_best_found_only=False):
     for exp_name in exp_names:
-        input_file_name = os.path.join(dir_name, f'{exp_name}.xlsx')
+        input_file_name = os.path.join(dir_name, f'{dir_name}_{exp_name}.xlsx')
         dfs = dict(
             euc = pd.read_excel(input_file_name, sheet_name='euclidean'),
-            euc_norm = pd.read_excel(input_file_name, sheet_name='euclidean_norm'),
         )
 
-        versions = ['v1', 'v2', 'v3']
-        for v in versions:
-            dfs[f'tw_{v}'] = pd.read_excel(input_file_name, sheet_name=f'TW_{v}')
-            dfs[f'tw_gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'TW_Gap_{v}')
-            dfs[f'tw_norm_{v}'] = pd.read_excel(input_file_name, sheet_name=f'TW_norm_{v}')
-            dfs[f'tw_gap_norm_{v}'] = pd.read_excel(input_file_name, sheet_name=f'TW_Gap_norm_{v}')
 
-        dfs_best = {name: get_best_found(df) for name, df in dfs.items()}
+        '''MODIFY: sheet names and df column names'''
+
+        # versions = ['v2_5_vectorized', 'v2_6_vectorized']
+        versions = ['v2_1', 'v2_2', 'v2_3']
+        for v in versions:
+            dfs[f'ol_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+            dfs[f'gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
+            dfs[f'both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+
+        '''END MODIFY'''
+
+
+        dfs_best = {name: get_best_found(df, name) for name, df in dfs.items()}
+
+        if print_best_found_only:
+            # only print the DFs from get_best_found
+            # do not output to excel
+            continue
 
         comp = pd.DataFrame()
         comp[KEY_INSTANCE_NAME] = dfs_best['euc'][KEY_INSTANCE_NAME]
@@ -131,29 +154,42 @@ def conditional_formatting(dir_name, sub_dir, file_name):
 
     dir_path = os.path.join(dir_name, sub_dir)
     helpers.make_dirs(dir_path)
-    out = os.path.join(dir_path, f'formatted_{file_name}.xlsx')
+    out = os.path.join(dir_path, f'{file_name}_formatted.xlsx')
     wb.save(out)
 
 
 if __name__ == '__main__':
+    '''MODIFY: experiment names and dir name; must match params in experiments.py'''
+
     exp_names = [
-        # 'k_medoids_C1',
+        'k_medoids_C1',
         # 'k_medoids_C2',
-        # 'k_medoids_R1',
+        'k_medoids_R1',
         # 'k_medoids_R2',
         # 'k_medoids_RC1',
-        # 'k_medoids_RC2',
-        'k_medoids_focus_C1',
-        'k_medoids_focus_C2',
-        'k_medoids_focus_R1',
-        'k_medoids_focus_R2',
-        'k_medoids_focus_RC1',
-        'k_medoids_focus_RC2',
+        'k_medoids_RC2',
+        # 'k_medoids_focus_C1',
+        # 'k_medoids_focus_C2',
+        # 'k_medoids_focus_R1',
+        # 'k_medoids_focus_R2',
+        # 'k_medoids_focus_RC1',
+        # 'k_medoids_focus_RC2',
     ]
 
-    dir_name = 'E5'
-    sub_dir = file_name = 'comparison'
+    dir_name = 'E6'
+    print_best_found_only = True
 
-    dump_comparison_data(exp_names, dir_name, sub_dir, file_name)
-    conditional_formatting(dir_name, sub_dir, file_name)
+    '''END MODIFY'''
+
+    sub_dir = file_name = f'{dir_name}_comparison'
+
+    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, print_best_found_only=print_best_found_only)
+    if print_best_found_only:
+        print(num_subprobs)
+        fig = plt.figure(figsize=(10, 4))
+        ax1 = fig.add_subplot(1, 2, 1)
+        ax1.hist(num_subprobs)
+        plt.show()
+
+    # conditional_formatting(dir_name, sub_dir, file_name)
 
