@@ -9,7 +9,7 @@ from openpyxl.utils.cell import get_column_letter
 import vrp.decomp.helpers as helpers
 from vrp.decomp.constants import *
 
-num_subprobs = np.array([])
+num_subprobs_best_found = np.array([])
 
 def get_best_found(df, name) -> pd.DataFrame:
     cost = df.loc[
@@ -31,15 +31,36 @@ def get_best_found(df, name) -> pd.DataFrame:
 
     # print(f'\n{name}')
     # print(best_found)
-    # global num_subprobs
-    # num_subprobs = np.append(num_subprobs, best_found[f'{KEY_NUM_SUBPROBS}_{KEY_COST}'].values)
+    global num_subprobs_best_found
+    num_subprobs_best_found = np.append(num_subprobs_best_found, best_found[f'{KEY_NUM_SUBPROBS}_{KEY_COST}'].values)
 
     return best_found
 
 
-def get_avg(df):
-    # TODO
-    pass
+def get_avg(df, name):
+    # this key function should be vectorized. It should expect a Series
+    # and return a Series with the same shape as the input.
+    # Thus it must use pandas.Series vectorized string functions for
+    # extracting substrings and stripping underscores '_'.
+    # Sort instance names by the ending digits, such that,
+    # e.g. R1_10_3 would appear before R1_10_10.
+    # Default python string sort would cause R1_10_10 to appear after R1_10_1
+    # but before R1_10_2, like this: R1_10_1, R1_10_10, R1_10_2, R1_10_3, etc.
+    # NOTE: this quick hack only works for HG instance names
+    # i.e. C1_10_1, R1_10_10, RC1_10_9
+    sort = lambda x: x.str[6:].str.strip('_').astype(int)
+    # must use as_index=False, so the group by key (KEY_INSTANCE_NAME)
+    # isn't used as index, otherwise it screws up column assignment
+    # in comparision code, where comp['col_name'] = df[KEY_COST] - dfs['euc'][KEY_COST]
+    # results in comp having NaN as the result of the column arithmitic
+    avg = df.groupby(by=KEY_INSTANCE_NAME, as_index=False).mean() \
+        .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST, KEY_COST_WAIT]] \
+        .reset_index(drop=True)
+
+    # print(f'\n{name}')
+    # print(avg)
+
+    return avg
 
 
 def percent_diff(col1, col2):
@@ -47,7 +68,7 @@ def percent_diff(col1, col2):
     return percent
 
 
-def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, print_best_found_only=False):
+def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=False, dump_avg=False):
     for exp_name in exp_names:
         input_file_name = os.path.join(dir_name, f'{dir_name}_{exp_name}.xlsx')
         dfs = dict(
@@ -70,48 +91,55 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, print_best_f
         '''END MODIFY'''
 
 
-        dfs_best = {name: get_best_found(df, name) for name, df in dfs.items()}
-
-        if print_best_found_only:
-            # only print the DFs from get_best_found
-            # do not output to excel
-            continue
-
-        comp = pd.DataFrame()
-        comp[KEY_INSTANCE_NAME] = dfs_best['euc'][KEY_INSTANCE_NAME]
         basis = pd.read_excel(input_file_name, sheet_name='Basis')
-        comp['euc vs no decomp'] = dfs_best['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
-        # add an empty column
-        comp[''] = ''
 
-        for name, df in dfs_best.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST}'] = df[KEY_COST] - dfs_best['euc'][KEY_COST]
+        if dump_best:
+            dfs_best = {name: get_best_found(df, name) for name, df in dfs.items()}
+            comp_best = pd.DataFrame()
+            comp_best[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
+            comp_best['euc vs no decomp'] = dfs_best['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
+            # add an empty column
+            comp_best[''] = ''
+            output_name_best = f'best_{output_name}'
+            dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name)
 
-        # cells containing the string 'N/A' will be set to None below by formatting
-        comp['N/A'] = ''
+        if dump_avg:
+            dfs_avg = {name: get_avg(df, name) for name, df in dfs.items()}
+            comp_avg = pd.DataFrame()
+            comp_avg[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
+            output_name_avg = f'avg_{output_name}'
+            dump_comp(dfs_avg, comp_avg, dir_name, sub_dir, output_name_avg, exp_name)
 
-        for name, df in dfs_best.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST}_%'] = percent_diff(df[KEY_COST], dfs_best['euc'][KEY_COST])
 
-        # add an empty column b/t cost and cost_wait
-        comp[' '] = ''
+def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name):
+    for name, df in dfs.items():
+        if name != 'euc':
+            comp[f'{name}_{KEY_COST}'] = df[KEY_COST] - dfs['euc'][KEY_COST]
 
-        for name, df in dfs_best.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST_WAIT}'] = df[KEY_COST_WAIT] - dfs_best['euc'][KEY_COST_WAIT]
+    # cells containing the string 'N/A' will be set to None below by formatting
+    comp['N/A'] = ''
 
-        comp['N/A2'] = ''
+    for name, df in dfs.items():
+        if name != 'euc':
+            comp[f'{name}_{KEY_COST}_%'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST])
 
-        for name, df in dfs_best.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs_best['euc'][KEY_COST_WAIT])
+    # add an empty column b/t cost and cost_wait
+    comp[' '] = ''
 
-        dir_path = os.path.join(dir_name, sub_dir)
-        helpers.make_dirs(dir_path)
-        out = os.path.join(dir_path, output_name)
-        helpers.write_to_excel(comp, file_name=out, sheet_name=exp_name, overlay=False)
+    for name, df in dfs.items():
+        if name != 'euc':
+            comp[f'{name}_{KEY_COST_WAIT}'] = df[KEY_COST_WAIT] - dfs['euc'][KEY_COST_WAIT]
+
+    comp['N/A2'] = ''
+
+    for name, df in dfs.items():
+        if name != 'euc':
+            comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs['euc'][KEY_COST_WAIT])
+
+    dir_path = os.path.join(dir_name, sub_dir)
+    helpers.make_dirs(dir_path)
+    out = os.path.join(dir_path, output_name)
+    helpers.df_to_excel(comp, file_name=out, sheet_name=sheet_name, overlay=False)
 
 
 def conditional_formatting(dir_name, sub_dir, file_name):
@@ -202,19 +230,24 @@ if __name__ == '__main__':
     ]
 
     dir_name = 'E10'
-    print_best_found_only = False
+    print_num_subprobs = False # dump_best must be True for this to be meaningful
+    dump_best = True
+    dump_avg = True
 
     '''END MODIFY'''
 
     sub_dir = file_name = f'{dir_name}_comparison'
 
-    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, print_best_found_only=print_best_found_only)
-    if print_best_found_only:
-        print(num_subprobs)
+    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg)
+    if print_num_subprobs:
+        print(num_subprobs_best_found)
         fig = plt.figure(figsize=(10, 4))
         ax1 = fig.add_subplot(1, 2, 1)
-        ax1.hist(num_subprobs)
+        ax1.hist(num_subprobs_best_found)
         plt.show()
 
-    conditional_formatting(dir_name, sub_dir, file_name)
+    if dump_best:
+        conditional_formatting(dir_name, sub_dir, f'best_{file_name}')
+    if dump_avg:
+        conditional_formatting(dir_name, sub_dir, f'avg_{file_name}')
 
