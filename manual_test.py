@@ -16,6 +16,7 @@ import vrp.decomp.distance_matrices as DM
 
 
 TEST_DIR = 'Test'
+MARKER_SIZE = 10
 
 
 def compute_route_wait_time(route, inst, verbose=False):
@@ -241,13 +242,20 @@ def trial_formulas(stats):
 
 
 def analyze_overlap_gap_percent():
+    '''% of node pairs in an instance with any overlap/gap'''
     dir_name = HG
+    FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
+    FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
+    FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
+    FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
+    FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
+    FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
     input = {
         'focus_C1': FOCUS_GROUP_C1,
-        # 'focus_C2': FOCUS_GROUP_C2,
+        'focus_C2': FOCUS_GROUP_C2,
         'focus_R1': FOCUS_GROUP_R1,
-        # 'focus_R2': FOCUS_GROUP_R2,
-        # 'focus_RC1': FOCUS_GROUP_RC1,
+        'focus_R2': FOCUS_GROUP_R2,
+        'focus_RC1': FOCUS_GROUP_RC1,
         'focus_RC2': FOCUS_GROUP_RC2,
     }
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
@@ -268,7 +276,7 @@ def analyze_overlap_gap_percent():
 
 
 def analyze_overlap_gap_size():
-    # TODO
+    # TODO: amount of overlap/gap as a % of total planning horizon
     pass
 
 
@@ -371,75 +379,133 @@ def dist_matrix_to_excel():
     # print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
-def plot_instance():
-    dir_name = HG
-    instance_name = 'C1_2_1'
+def plot_instance(dir_name, instance_name):
+    # dir_name = HG
+    # instance_name = 'C1_2_1'
     inst, _ = read_instance(dir_name, instance_name)
     coords = np.asarray(inst.coordinates)
     depot = coords[0]
     x, y = zip(*coords[1:])
     fig, ax = plt.subplots()
-    ax.scatter(depot[0], depot[1], label='depot', c='red')
-    ax.scatter(x, y, label='customers')
+    ax.scatter(depot[0], depot[1], label='depot', c='red', s=MARKER_SIZE)
+    ax.scatter(x, y, label='customers', s=MARKER_SIZE)
     # ax.legend()
     fig.legend(loc='upper left')
     ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
-    plt.show()
-    print(plt.get_fignums())
+    # plt.show()
+    # print(plt.get_fignums())
+    return fig
 
 
 def plot_dist_matrix():
-    '''
-    if all 3 are False, it's plain old euclidean
-    if only norm is True, it's normalized euclidean
-    without normalization, gap could reduce dist to unreasonably small values even with v2 formulas
-    while overlap could increase dist by 50% to almost 100%
-    '''
+    dir_name = HG
+    instance_name = 'RC2_2_1'
+    path = os.path.join(TEST_DIR, 'plot', instance_name)
+    helpers.make_dirs(path)
+    fig = plot_instance(dir_name, instance_name)
+    fname = os.path.join(path, 'coords')
+    fig.savefig(fname)
+
+    dms = [
+        # DM.euclidean_vectorized,
+        # DM.v1_vectorized,                     # doesn't work for gap bc it produced many 0s (division by 0 error)
+        # DM.v2_1_vectorized,                   # 2.1 and 2.2 have the same formula for gap; only overlap differs
+        DM.v2_2_vectorized,
+        # below are all variations of v2.2
+        DM.v2_3_vectorized,
+        DM.v2_4_vectorized,
+        DM.v2_5_vectorized,
+        DM.v2_6_vectorized,
+    ]
+
     overlap = False
     gap = False
     norm = False
 
-    ext = ''
-    ext += ' overlap' if overlap else ''
-    ext += ' gap' if gap else ''
-    ext += ' norm' if norm else ''
+    for dist_matrix_func in dms:
+        if dist_matrix_func is not DM.euclidean_vectorized:
+            # overlap = True
+            gap = True
+            norm = True
 
+        ext = ''
+        ext += ' overlap' if overlap else ''
+        ext += ' gap' if gap else ''
+        ext += ' norm' if norm else ''
+
+        inst, converted_inst = read_instance(dir_name, instance_name)
+        title = dist_matrix_func.__name__.removesuffix('_vectorized')
+        title += ext
+        decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
+        feature_vectors = helpers.build_feature_vectors(converted_inst)
+        dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+        edges = []
+        n = len(dist_matrix)
+        for i in range(n):
+            for j in range(n):
+                if i < j:
+                    edges.append((i, j, {'dist': dist_matrix[i, j]}))
+
+        G = nx.Graph()
+        G.add_edges_from(edges)
+        dist_dict = defaultdict(dict)
+        for src, dest, data in G.edges(data=True):
+            dist_dict[src][dest] = data['dist']
+
+        fig, ax = plt.subplots()
+        ## makes no sense to plot depot based on coords here bc we're plotting based on dist matrix here (mutlidimensional scaling)
+        # depot = inst.coordinates[0]
+        # ax.scatter(depot[0], depot[1], label='depot', c='red')
+        pos = nx.kamada_kawai_layout(G, dist_dict)
+        nx.draw_networkx_nodes(G, pos, node_size=MARKER_SIZE, ax=ax, label='customers')
+        fig.legend(loc='upper left')
+        ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
+        # plt.suptitle('Euclidean')
+        fig.suptitle(f"{title}")
+        fname = os.path.join(path, title)
+        fig.savefig(fname)
+
+
+def plot_clusters():
     dir_name = HG
-    instance_name = 'C1_2_1'
+    instance_name = 'R1_2_1'
+    num_clusters = 2
+    # overlap, gap, norm
+    euc = (False, False, False)
+    ol = (True, False, True)
+    gap = (False, True, True)
+    flag = ol
+    dist_matrix_func = DM.v2_3_vectorized
+
+    ext = ''
+    ext += ' overlap' if flag[0] else ''
+    ext += ' gap' if flag[1] else ''
+    ext += ' norm' if flag[2] else ''
+
     inst, converted_inst = read_instance(dir_name, instance_name)
-    dist_matrix_func = DM.v1_vectorized
     title = dist_matrix_func.__name__.removesuffix('_vectorized')
     title += ext
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
-    feature_vectors = helpers.build_feature_vectors(converted_inst)
-    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-    edges = []
-    n = len(dist_matrix)
-    for i in range(n):
-        for j in range(n):
-            if i < j:
-                edges.append((i, j, {'dist': dist_matrix[i, j]}))
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
+    decomposer.num_clusters = num_clusters
+    clusters = decomposer.decompose(converted_inst)
 
-    G = nx.Graph()
-    G.add_edges_from(edges)
-    dist_dict = defaultdict(dict)
-    for src, dest, data in G.edges(data=True):
-        dist_dict[src][dest] = data['dist']
-
+    coords = np.asarray(inst.coordinates)
+    depot = coords[0]
     fig, ax = plt.subplots()
-    ## makes no sense to plot depot based on coords here bc we're plotting based on dist matrix here (mutlidimensional scaling)
-    # depot = inst.coordinates[0]
-    # ax.scatter(depot[0], depot[1], label='depot', c='red')
-    pos = nx.kamada_kawai_layout(G, dist_dict)
-    nx.draw_networkx_nodes(G, pos, node_size=50, ax=ax, label='customers')
-    fig.legend()
+    ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE+10)
+
+    for i, cluster in enumerate(clusters):
+        x, y = zip(*coords[cluster].tolist())
+        ax.scatter(x, y, label=f'cluster {i+1}', s=MARKER_SIZE)
+
+    fig.legend(loc='upper left')
     ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
-    # plt.suptitle('Euclidean')
     fig.suptitle(f"{title}")
     plt.show()
 
 
-def plot_clusters():
+def plot_routes():
+    # TODO
     pass
 
 
@@ -448,7 +514,7 @@ def test_decompose():
     instance_name = 'C101'
     inst, converted_inst = read_instance(dir_name, instance_name)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, use_tw=True)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, use_overlap=True)
     decomposer.num_clusters = 5
     decomposer.decompose(converted_inst)
 
@@ -497,8 +563,10 @@ if __name__ == '__main__':
     # test_pairwise_distance()
     # test_get_constituents()
     # analyze_overlap_gap_percent()
+    analyze_overlap_gap_size()
     # dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
     # plot_instance()
-    plot_dist_matrix()
+    # plot_dist_matrix()
+    plot_clusters()
