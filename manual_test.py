@@ -241,45 +241,6 @@ def trial_formulas(stats):
     return stats
 
 
-def analyze_overlap_gap_percent():
-    '''% of node pairs in an instance with any overlap/gap'''
-    dir_name = HG
-    FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
-    FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
-    FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
-    FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
-    FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
-    FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
-    input = {
-        'focus_C1': FOCUS_GROUP_C1,
-        'focus_C2': FOCUS_GROUP_C2,
-        'focus_R1': FOCUS_GROUP_R1,
-        'focus_R2': FOCUS_GROUP_R2,
-        'focus_RC1': FOCUS_GROUP_RC1,
-        'focus_RC2': FOCUS_GROUP_RC2,
-    }
-    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
-    for val in input.values():
-        for instance_name in val:
-            _, converted_inst = read_instance(dir_name, instance_name)
-            feature_vectors = helpers.build_feature_vectors(converted_inst)
-            fv = feature_vectors.data
-            constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=True)
-            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
-            overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
-            gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
-            overlap_p = overlap_count / df['overlap'].count()
-            gap_p = gap_count / df['gap'].count()
-            print(f'\n{instance_name}')
-            print(f'overlap % = {round(overlap_p * 100, 2)}%')
-            print(f'gap % = {round(gap_p * 100, 2)}%')
-
-
-def analyze_overlap_gap_size():
-    # TODO: amount of overlap/gap as a % of total planning horizon
-    pass
-
-
 def test_get_constituents(to_excel=False):
     dir_name = SOLOMON
     'C101'
@@ -400,7 +361,7 @@ def plot_instance(dir_name, instance_name):
 def plot_dist_matrix():
     dir_name = HG
     instance_name = 'RC2_2_1'
-    path = os.path.join(TEST_DIR, 'plot', instance_name)
+    path = os.path.join(TEST_DIR, 'plot', 'dist_matrix', instance_name)
     helpers.make_dirs(path)
     fig = plot_instance(dir_name, instance_name)
     fname = os.path.join(path, 'coords')
@@ -492,7 +453,7 @@ def plot_clusters():
     coords = np.asarray(inst.coordinates)
     depot = coords[0]
     fig, ax = plt.subplots()
-    ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE+10)
+    ax.scatter(depot[0], depot[1], label='depot', c='red', s=MARKER_SIZE*2, marker='s') # square
 
     for i, cluster in enumerate(clusters):
         x, y = zip(*coords[cluster].tolist())
@@ -507,6 +468,74 @@ def plot_clusters():
 def plot_routes():
     # TODO
     pass
+
+
+def analyze_overlap_gap_effect():
+    dir_name = HG
+    FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
+    FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
+    FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
+    FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
+    FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
+    FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
+    input = {
+        # 'test': ['RC2_2_8'],
+        'focus_C1': FOCUS_GROUP_C1,
+        'focus_C2': FOCUS_GROUP_C2,
+        'focus_R1': FOCUS_GROUP_R1,
+        'focus_R2': FOCUS_GROUP_R2,
+        'focus_RC1': FOCUS_GROUP_RC1,
+        'focus_RC2': FOCUS_GROUP_RC2,
+    }
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
+    for val in input.values():
+        for instance_name in val:
+            inst, converted_inst = read_instance(dir_name, instance_name)
+            feature_vectors = helpers.build_feature_vectors(converted_inst)
+            fv = feature_vectors.data
+            x, y, start, end = np.asarray(list(zip(*fv)))
+            planning_horizon = end.max() - start.min()
+
+            constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=False)
+            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
+            overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
+            gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
+            overlap_p = overlap_count / df['overlap'].count()
+            overlap_p = round(overlap_p * 100, 2)
+            gap_p = gap_count / df['gap'].count()
+            gap_p = round(gap_p * 100, 2)
+            print(f'\n{instance_name}')
+            # % of node pairs in an instance with _any_ overlap/gap
+            print(f'overlap % = {overlap_p}%')
+            print(f'gap % = {gap_p}%')
+
+            # pairwise size of overlap/gap compared to the planning horizon
+            overlaps = constituents_matrix['overlap']
+            overlaps = overlaps[overlaps != 0]
+            gaps = constituents_matrix['gap']
+            gaps = gaps[gaps != 0]
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5.4))
+            ax1.plot(overlaps)
+            ax1.set_title('Pairwise Overlaps Amount')
+            # draw a horizontal line
+            ax1.axhline(planning_horizon, ls='--', c='red')
+            arrow_x = len(overlaps) / 2 - len(overlaps) * 0.2 # middle shifted to the left by 20%
+            arrow_y = planning_horizon
+            text_x = len(overlaps) / 2 - len(overlaps) * 0.05
+            text_y = planning_horizon * 0.8
+            ax1.annotate('planning horizon', xy=(arrow_x, arrow_y),
+                        xytext=(text_x, text_y),
+                        arrowprops=dict(facecolor='black', shrink=0.05))
+
+            ax2.plot(gaps)
+            ax2.set_title('Pairwise Gaps Amount')
+            ax2.axhline(planning_horizon, ls='--', c='red')
+            fig.suptitle(f'{inst.name} (% of node pairs with $any$ overlap/gap: {overlap_p}% overlap, {gap_p}% gap)') #, fontweight='bold')
+            # plt.show()
+            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect')
+            helpers.make_dirs(path)
+            fname = os.path.join(path, instance_name)
+            fig.savefig(fname)
 
 
 def test_decompose():
@@ -562,11 +591,10 @@ if __name__ == '__main__':
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
     # test_get_constituents()
-    # analyze_overlap_gap_percent()
-    analyze_overlap_gap_size()
     # dist_matrix_to_excel()
     # test_decompose()
     # test_framework()
     # plot_instance()
     # plot_dist_matrix()
-    plot_clusters()
+    # plot_clusters()
+    analyze_overlap_gap_effect()
