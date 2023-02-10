@@ -1,4 +1,5 @@
 from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
+from ..third_party.solver.hgs import tools
 from wurlitzer import pipes
 
 from .decomposition import AbstractSolverWrapper, VRPInstance, VRPSolution
@@ -10,9 +11,10 @@ logger = logger.getChild(__name__)
 
 
 class HgsSolverWrapper(AbstractSolverWrapper):
-    def __init__(self, time_limit=10, cpp_output=False) -> None:
+    def __init__(self, time_limit=10, cpp_output=False, trivial_init_sol=False) -> None:
         self.time_limit = time_limit
         self.cpp_output = cpp_output
+        self.trivial_init_sol = trivial_init_sol
 
 
     def build_instance_for_hgs(self, inst: VRPInstance):
@@ -62,12 +64,22 @@ class HgsSolverWrapper(AbstractSolverWrapper):
 
         instance = self.build_instance_for_hgs(inst)
 
+        initial_solution = ''
+        if self.trivial_init_sol:
+            def to_giant_tour_str(routes, with_depot=True):
+                return " ".join(map(str, tools.to_giant_tour(routes, with_depot)))
+
+            # trivial initial solution: one tour per customer
+            initial_solution = [[i] for i in range(1, len(instance['coords']))]
+            initial_solution = to_giant_tour_str(initial_solution)
+
         # Capture C-level stdout/stderr
         with pipes() as (out, err):
             config = hgspy.Config(
                 nbVeh=-1,
                 timeLimit=self.time_limit,
-                useWallClockTime=True
+                useWallClockTime=True,
+                initialSolution=initial_solution,
             )
 
             params = hgspy.Params(config, **instance)
