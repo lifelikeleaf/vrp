@@ -1,7 +1,6 @@
 from functools import lru_cache
 from scipy.spatial.distance import euclidean as scipy_euclidean
 import numpy as np
-import pandas as pd
 
 from . import helpers
 
@@ -451,11 +450,8 @@ def _get_constituents_matrix(fv, decomposer):
     gap_matrix = np.zeros((n, n))
     # stats = pd.DataFrame()
 
-    fv_df = pd.DataFrame(fv, columns=['x', 'y', 'start', 'end'])
-    tw_start_min = fv_df.start.min()
-    tw_end_max = fv_df.end.max()
-    # rough planning horizon
-    time_horizon = tw_end_max - tw_start_min
+    x, y, start, end = np.asarray(list(zip(*fv)))
+    planning_horizon = end.max() - start.min()
 
     # get pairwise constituents, for normalization purposes
     for i in range(n):
@@ -482,7 +478,7 @@ def _get_constituents_matrix(fv, decomposer):
 
     # must do this before normalization
     # and do not normalze bc they're relative ratios
-    relative_tw_width_matrix = max_tw_width_matrix / time_horizon
+    relative_tw_width_matrix = max_tw_width_matrix / planning_horizon
     # NOTE: overlap could be > max_tw_width after normalization
     # even though that's impossible before
     relative_overlap_matrix = np.divide(
@@ -566,11 +562,8 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
     overlaps = np.where(overlaps_or_gaps > 0, overlaps_or_gaps, 0)
     gaps = np.where(overlaps_or_gaps < 0, np.absolute(overlaps_or_gaps), 0)
 
-    fv_df = pd.DataFrame(fv, columns=['x', 'y', 'start', 'end'])
-    tw_start_min = fv_df.start.min()
-    tw_end_max = fv_df.end.max()
-    # rough planning horizon
-    time_horizon = tw_end_max - tw_start_min
+    x, y, start, end = np.asarray(list(zip(*fv)))
+    planning_horizon = end.max() - start.min()
 
     if as_matrix:
         max_tw_width_matrix = np.zeros((n, n))
@@ -590,7 +583,7 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
         overlap_matrix += overlap_matrix.T
         gap_matrix += gap_matrix.T
 
-        relative_tw_width_matrix = max_tw_width_matrix / time_horizon
+        relative_tw_width_matrix = max_tw_width_matrix / planning_horizon
         relative_overlap_matrix = np.divide(
             overlap_matrix,
             max_tw_width_matrix,
@@ -627,7 +620,7 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
         return constituents_matrix
 
     else:
-        relative_tw_widths = max_tw_widths / time_horizon
+        relative_tw_widths = max_tw_widths / planning_horizon
         relative_overlaps = np.divide(
             overlaps,
             max_tw_widths,
