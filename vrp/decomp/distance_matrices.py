@@ -43,6 +43,26 @@ def v2_6_vectorized(feature_vectors, decomposer):
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_6)
 
 
+def v2_7_vectorized(feature_vectors, decomposer):
+    '''weighted version of 2.2'''
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_7)
+
+
+def v2_8_vectorized(feature_vectors, decomposer):
+    '''weighted version of 2.2'''
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_8)
+
+
+def v2_9_vectorized(feature_vectors, decomposer):
+    '''weighted version of 2.2'''
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_9)
+
+
+def v2_10_vectorized(feature_vectors, decomposer):
+    '''weighted version of 2.2'''
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_10)
+
+
 def euclidean_vectorized(feature_vectors, decomposer):
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_euclidean_dist)
 
@@ -208,6 +228,26 @@ def _vectorized_dist_v2_5(constituents, decomposer):
 def _vectorized_dist_v2_6(constituents, decomposer):
     '''limit weight up to 50% for overlap, 30% for gap'''
     return _vectorized_dist_v2_2(constituents, decomposer, overlap_weight_limit=0.5, gap_weight_limit=0.3)
+
+
+def _vectorized_dist_v2_7(constituents, decomposer):
+    '''limit weight up to 40%'''
+    return _vectorized_dist_v2_2(constituents, decomposer, overlap_weight_limit=0.4, gap_weight_limit=0.4)
+
+
+def _vectorized_dist_v2_8(constituents, decomposer):
+    '''limit weight up to 20%'''
+    return _vectorized_dist_v2_2(constituents, decomposer, overlap_weight_limit=0.2, gap_weight_limit=0.2)
+
+
+def _vectorized_dist_v2_9(constituents, decomposer):
+    '''limit weight up to 10%'''
+    return _vectorized_dist_v2_2(constituents, decomposer, overlap_weight_limit=0.1, gap_weight_limit=0.1)
+
+
+def _vectorized_dist_v2_10(constituents, decomposer):
+    '''limit weight up to 60%'''
+    return _vectorized_dist_v2_2(constituents, decomposer, overlap_weight_limit=0.6, gap_weight_limit=0.6)
 
 
 def _vectorized_euclidean_dist(constituents, decomposer):
