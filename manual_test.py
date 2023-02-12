@@ -511,26 +511,42 @@ def analyze_overlap_gap_effect():
 
             # pairwise size of overlap/gap compared to the planning horizon
             overlaps = constituents_matrix['overlap']
-            overlaps = overlaps[overlaps != 0]
+            # overlaps = overlaps[overlaps != 0]
             gaps = constituents_matrix['gap']
-            gaps = gaps[gaps != 0]
+            # gaps = gaps[gaps != 0]
+            overlaps.sort()
+            gaps.sort()
+
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5.4))
+            y_max = planning_horizon * 1.05
+            text_x = len(overlaps) * 0.4 # same for gaps when 0s are not filtered out
+            text_y = planning_horizon * 0.2
+
             ax1.plot(overlaps)
-            ax1.set_title('Pairwise Overlaps Amount')
+            ax1.fill_between(np.arange(len(overlaps)), overlaps)
+            # Use double curly braces to "escape" literal curly braces that only LaTeX understands
+            ax1.text(text_x, text_y, rf'$\sum_{{overlaps}} = {overlaps.sum():,}$')
+            ax1.set_ylim(top=y_max)
+
+            ax1.set_title('Amount of Overlaps')
             # draw a horizontal line
             ax1.axhline(planning_horizon, ls='--', c='red')
-            arrow_x = len(overlaps) / 2 - len(overlaps) * 0.2 # middle shifted to the left by 20%
-            arrow_y = planning_horizon
-            text_x = len(overlaps) / 2 - len(overlaps) * 0.05
-            text_y = planning_horizon * 0.8
-            ax1.annotate('planning horizon', xy=(arrow_x, arrow_y),
-                        xytext=(text_x, text_y),
+            arrow_head_x = len(overlaps) * 0.3 # middle shifted to the left by 20%
+            arrow_head_y = planning_horizon
+            arrow_tail_x = len(overlaps) * 0.45
+            arrow_tail_y = planning_horizon * 0.8
+            ax1.annotate('planning horizon', xy=(arrow_head_x, arrow_head_y),
+                        xytext=(arrow_tail_x, arrow_tail_y),
                         arrowprops=dict(facecolor='black', shrink=0.05))
 
             ax2.plot(gaps)
-            ax2.set_title('Pairwise Gaps Amount')
+            ax2.fill_between(np.arange(len(gaps)), gaps)
+            ax2.text(text_x, text_y, rf'$\sum_{{gaps}}$ = {gaps.sum():,}')
+            ax2.set_ylim(top=y_max)
+
+            ax2.set_title('Amount of Gaps')
             ax2.axhline(planning_horizon, ls='--', c='red')
-            fig.suptitle(f'{inst.name} (% of node pairs with $any$ overlap/gap: {overlap_p}% overlap, {gap_p}% gap)') #, fontweight='bold')
+            fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlaps, {gap_p}% gaps)') #, fontweight='bold')
             # plt.show()
             path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect')
             helpers.make_dirs(path)
