@@ -9,7 +9,7 @@ from openpyxl.utils.cell import get_column_letter
 import vrp.decomp.helpers as helpers
 from vrp.decomp.constants import *
 
-num_subprobs_best_found = np.array([])
+num_subprobs_best_found = np.array([], dtype=int)
 
 def get_best_found(df, name) -> pd.DataFrame:
     cost = df.loc[
@@ -78,15 +78,15 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
 
         '''MODIFY: sheet names and df column names'''
 
-        dfs[f'both_v2_4'] = pd.read_excel(input_file_name, sheet_name=f'Both_v2_4')
-        dfs[f'gap_v2_5'] = pd.read_excel(input_file_name, sheet_name=f'Gap_v2_5')
-
-        # versions = ['v2_5_vectorized', 'v2_6_vectorized']
-        versions = ['v2_6']
+        # versions = ['v1', 'v2_1', 'v2_2', 'v2_3', 'v2_4', 'v2_5', 'v2_6']
+        # versions = ['v2_7', 'v2_8', 'v2_9', 'v2_10']
+        versions = ['v2_5', 'v2_8', 'v2_9']
         for v in versions:
             dfs[f'ol_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
             dfs[f'gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
-            dfs[f'both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+
+            ''' `Both` almost never worked well'''
+            # dfs[f'both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
 
         '''END MODIFY'''
 
@@ -215,12 +215,12 @@ if __name__ == '__main__':
     '''MODIFY: experiment names and dir name; must match params in experiments.py'''
 
     exp_names = [
-        # 'k_medoids_C1',
+        'k_medoids_C1',
         'k_medoids_C2',
-        # 'k_medoids_R1',
+        'k_medoids_R1',
         'k_medoids_R2',
         'k_medoids_RC1',
-        # 'k_medoids_RC2',
+        'k_medoids_RC2',
         # 'k_medoids_focus_C1',
         # 'k_medoids_focus_C2',
         # 'k_medoids_focus_R1',
@@ -229,8 +229,8 @@ if __name__ == '__main__':
         # 'k_medoids_focus_RC2',
     ]
 
-    dir_name = 'E10'
-    print_num_subprobs = False # dump_best must be True for this to be meaningful
+    dir_name = 'E13'
+    print_num_subprobs = True # dump_best must be True for this to be meaningful
     dump_best = True
     dump_avg = True
 
@@ -240,10 +240,22 @@ if __name__ == '__main__':
 
     dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg)
     if print_num_subprobs:
-        print(num_subprobs_best_found)
-        fig = plt.figure(figsize=(10, 4))
-        ax1 = fig.add_subplot(1, 2, 1)
-        ax1.hist(num_subprobs_best_found)
+        print(num_subprobs_best_found.tolist())
+        for i in range(num_subprobs_best_found.min(), num_subprobs_best_found.max() + 1, 1):
+            '''
+            num_clusters=2: 70
+            num_clusters=3: 100
+            num_clusters=4: 161
+            num_clusters=5: 45
+            num_clusters=6: 23
+            num_clusters=7: 9
+            num_clusters=8: 7
+            num_clusters=9: 4
+            num_clusters=10: 1
+            '''
+            print(f'num_clusters={i}: {len(num_subprobs_best_found[num_subprobs_best_found == i])}')
+        fig, ax = plt.subplots()
+        ax.hist(num_subprobs_best_found, bins=9, linewidth=0.5, edgecolor="white", align='mid', rwidth=0.8)
         plt.show()
 
     if dump_best:
