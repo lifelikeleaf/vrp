@@ -68,7 +68,7 @@ def percent_diff(col1, col2):
     return percent
 
 
-def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=False, dump_avg=False):
+def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=False, dump_avg=False, dump_all=False):
     for exp_name in exp_names:
         input_file_name = os.path.join(dir_name, f'{dir_name}_{exp_name}.xlsx')
         dfs = dict(
@@ -109,6 +109,12 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             comp_avg[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
             output_name_avg = f'avg_{output_name}'
             dump_comp(dfs_avg, comp_avg, dir_name, sub_dir, output_name_avg, exp_name)
+
+        if dump_all:
+            comp_all = pd.DataFrame()
+            comp_all[KEY_INSTANCE_NAME] = dfs['euc'][KEY_INSTANCE_NAME]
+            output_name_all = f'all_{output_name}'
+            dump_comp(dfs, comp_all, dir_name, sub_dir, output_name_all, exp_name)
 
 
 def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name):
@@ -157,7 +163,7 @@ def conditional_formatting(dir_name, sub_dir, file_name):
         '''Do not apply formula to blank cells, i.e. cell.value == None
         The formula uses a relative reference (A2), which will be expanded
         to the range over which the format is applied; this is a peculiar feature of Excel'''
-        between_rule = FormulaRule(formula=['AND( NOT( ISBLANK(A2) ), A2 >= 0, A2 <= 0.01 )'], fill=yellow_fill)
+        # between_rule = FormulaRule(formula=['AND( NOT( ISBLANK(A2) ), A2 >= 0, A2 <= 0.01 )'], fill=yellow_fill)
         start_row = sheet.min_row + 1 # skip the headers
         start_col = get_column_letter(sheet.min_column)
         end_row = sheet.max_row
@@ -165,7 +171,7 @@ def conditional_formatting(dir_name, sub_dir, file_name):
         # e.g. range_string = 'B2:F4'
         range_string = f'{start_col}{start_row}:{end_col}{end_row}'
         sheet.conditional_formatting.add(range_string, less_than_rule)
-        sheet.conditional_formatting.add(range_string, between_rule)
+        # sheet.conditional_formatting.add(range_string, between_rule)
 
         headers = sheet[1] # row 1
         for header_cell in headers:
@@ -198,12 +204,12 @@ def conditional_formatting(dir_name, sub_dir, file_name):
                 formula_range = f'{col_letter}{start_row}:{col_letter}{cur_max_row}'
                 if col_letter == 'A': # first column
                     sheet[cell_loc_1] = 'x<0'
-                    sheet[cell_loc_2] = '0<=x<=0.01'
-                    sheet[cell_loc_3] = 'x<=0.01'
+                    # sheet[cell_loc_2] = '0<=x<=0.01'
+                    # sheet[cell_loc_3] = 'x<=0.01'
                 else:
                     sheet[cell_loc_1] = f'=COUNTIF({formula_range}, "<0")'
-                    sheet[cell_loc_2] = f'=COUNTIFS({formula_range}, ">=0", {formula_range}, "<=0.01")'
-                    sheet[cell_loc_3] = f'=COUNTIF({formula_range}, "<=0.01")'
+                    # sheet[cell_loc_2] = f'=COUNTIFS({formula_range}, ">=0", {formula_range}, "<=0.01")'
+                    # sheet[cell_loc_3] = f'=COUNTIF({formula_range}, "<=0.01")'
 
     dir_path = os.path.join(dir_name, sub_dir)
     helpers.make_dirs(dir_path)
@@ -230,15 +236,16 @@ if __name__ == '__main__':
     ]
 
     dir_name = 'E13'
-    print_num_subprobs = True # dump_best must be True for this to be meaningful
+    print_num_subprobs = False # dump_best must be True for this to be meaningful
     dump_best = True
     dump_avg = True
+    dump_all = True
 
     '''END MODIFY'''
 
     sub_dir = file_name = f'{dir_name}_comparison'
 
-    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg)
+    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg, dump_all=dump_all)
     if print_num_subprobs:
         print(num_subprobs_best_found.tolist())
         for i in range(num_subprobs_best_found.min(), num_subprobs_best_found.max() + 1, 1):
@@ -262,4 +269,6 @@ if __name__ == '__main__':
         conditional_formatting(dir_name, sub_dir, f'best_{file_name}')
     if dump_avg:
         conditional_formatting(dir_name, sub_dir, f'avg_{file_name}')
+    if dump_all:
+        conditional_formatting(dir_name, sub_dir, f'all_{file_name}')
 
