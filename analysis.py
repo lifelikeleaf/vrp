@@ -63,8 +63,23 @@ def get_avg(df, name):
     return avg
 
 
-def percent_diff(col1, col2):
-    percent = (col1 - col2) / col2
+def percent_diff(col1, col2, denom=None):
+    if denom is None:
+        # percent = (col1 - col2) / col2
+        percent = np.divide(
+            (col1 - col2),
+            col2,
+            out=np.zeros(col2.shape),
+            where=(col2 != 0)
+        )
+    else:
+        # percent = (col1 - col2) / denom
+        percent = np.divide(
+            (col1 - col2),
+            denom,
+            out=np.zeros(col2.shape),
+            where=(denom != 0)
+        )
     return percent
 
 
@@ -97,11 +112,12 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             dfs_best = {name: get_best_found(df, name) for name, df in dfs.items()}
             comp_best = pd.DataFrame()
             comp_best[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
-            comp_best['euc vs no decomp'] = dfs_best['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
+            comp_best['euc vs nod'] = dfs_best['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
+            comp_best['euc vs nod %'] = percent_diff(dfs_best['euc'][KEY_COST], basis[f'{KEY_COST}_NO_decomp'])
             # add an empty column
             comp_best[''] = ''
             output_name_best = f'best_{output_name}'
-            dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name)
+            dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name, dump_best=True)
 
         if dump_avg:
             dfs_avg = {name: get_avg(df, name) for name, df in dfs.items()}
@@ -117,7 +133,7 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             dump_comp(dfs, comp_all, dir_name, sub_dir, output_name_all, exp_name)
 
 
-def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name):
+def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, dump_best=False):
     for name, df in dfs.items():
         if name != 'euc':
             comp[f'{name}_{KEY_COST}'] = df[KEY_COST] - dfs['euc'][KEY_COST]
@@ -127,7 +143,16 @@ def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name):
 
     for name, df in dfs.items():
         if name != 'euc':
-            comp[f'{name}_{KEY_COST}_%'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST])
+            # percentage improvement compared to absolute euclidean cost
+            comp[f'{name}_{KEY_COST}_%_euc'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST])
+
+    if dump_best:
+        comp['N/A3'] = ''
+
+        for name, df in dfs.items():
+            if name != 'euc':
+                # percentage improvement compared to how much euclidean is able to improve no decomp
+                comp[f'{name}_{KEY_COST}_%_nod'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST], abs(comp['euc vs nod']))
 
     # add an empty column b/t cost and cost_wait
     comp[' '] = ''
@@ -238,8 +263,8 @@ if __name__ == '__main__':
     dir_name = 'E13'
     print_num_subprobs = False # dump_best must be True for this to be meaningful
     dump_best = True
-    dump_avg = True
-    dump_all = True
+    dump_avg = False
+    dump_all = False
 
     '''END MODIFY'''
 
