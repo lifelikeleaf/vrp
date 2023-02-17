@@ -25,7 +25,7 @@ def compute_route_wait_time(route, inst, verbose=False):
     depot = 0
     first_stop = route[0]
     route_wait_time = 0
-    route_dist = inst.distances[depot][first_stop]
+    route_time = inst.distances[depot][first_stop]
 
     # don't count the wait time at the first stop
     # bc the vehicle could always be dispatched later from the depot
@@ -59,7 +59,7 @@ def compute_route_wait_time(route, inst, verbose=False):
     prev_stop = first_stop
     for stop in route[1:]: # start counting wait time from the 2nd stop
         travel_time = inst.distances[prev_stop][stop]
-        route_dist += travel_time
+        route_time += travel_time
         tw_earliest_start = inst.earliest[stop]
         arrival_time = departure_time + travel_time
         # Wait if we arrive before earliest start
@@ -84,9 +84,9 @@ def compute_route_wait_time(route, inst, verbose=False):
 
         prev_stop = stop
 
-    route_dist += inst.distances[prev_stop][depot]
+    route_time += inst.distances[prev_stop][depot]
 
-    return route_wait_time, route_dist
+    return route_wait_time, route_time
 
 
 def list_benchmark_names():
@@ -177,7 +177,7 @@ def test_pairwise_distance():
     gap = False
 
     _, converted_inst = read_instance(dir_name, instance_name)
-    decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_tw=True, use_gap=gap)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_overlap=True, use_gap=gap)
     feature_vectors = helpers.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
 
@@ -472,20 +472,31 @@ def plot_routes():
 
 def analyze_overlap_gap_effect():
     dir_name = HG
-    FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
-    FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
-    FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
-    FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
-    FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
-    FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
+    '''n=200'''
+    # FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
+    # FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
+    # FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
+    # FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
+    # FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
+    # FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
     input = {
-        # 'test': ['RC2_2_8'],
-        'focus_C1': FOCUS_GROUP_C1,
-        'focus_C2': FOCUS_GROUP_C2,
-        'focus_R1': FOCUS_GROUP_R1,
-        'focus_R2': FOCUS_GROUP_R2,
-        'focus_RC1': FOCUS_GROUP_RC1,
-        'focus_RC2': FOCUS_GROUP_RC2,
+        # 'test': ['RC2_10_8'],
+
+        ## n=1000
+        # 'focus_C1': FOCUS_GROUP_C1,
+        # 'focus_C2': FOCUS_GROUP_C2,
+        # 'focus_R1': FOCUS_GROUP_R1,
+        # 'focus_R2': FOCUS_GROUP_R2,
+        # 'focus_RC1': FOCUS_GROUP_RC1,
+        # 'focus_RC2': FOCUS_GROUP_RC2,
+
+        ## n=1000
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
     }
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
     for val in input.values():
@@ -548,7 +559,7 @@ def analyze_overlap_gap_effect():
             ax2.axhline(planning_horizon, ls='--', c='red')
             fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlaps, {gap_p}% gaps)') #, fontweight='bold')
             # plt.show()
-            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect')
+            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect (1k)')
             helpers.make_dirs(path)
             fname = os.path.join(path, instance_name)
             fig.savefig(fname)
@@ -573,28 +584,26 @@ def test_framework():
     solver = HgsSolverWrapper(time_limit=5)
     # solution = solver.solve(converted_inst)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, num_clusters=num_clusters, use_tw=True, use_gap=True)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, num_clusters=num_clusters, use_overlap=True, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
 
     cost = solution.metrics[METRIC_COST]
-    dist = solution.metrics[METRIC_DISTANCE]
     wait_time = solution.metrics[METRIC_WAIT_TIME]
     routes = solution.routes
     extra = solution.extra
 
 
     total_wait_time = 0
-    total_dist = 0
+    total_time = 0
     for route in routes:
-        route_wait_time, route_dist = compute_route_wait_time(route, inst, verbose=False)
+        route_wait_time, route_time = compute_route_wait_time(route, inst, verbose=False)
         total_wait_time += route_wait_time
-        total_dist += route_dist
+        total_time += route_time
 
 
     print(f'cost: {cost}')
-    print(f'distance: {dist}')
-    print(f'computed total distance: {total_dist}')
+    print(f'computed total time: {total_time}')
     print(f'wait time: {wait_time}')
     print(f'computed total wait time: {total_wait_time}')
     print(f'extra: {extra}')
@@ -609,8 +618,8 @@ if __name__ == '__main__':
     # test_get_constituents()
     # dist_matrix_to_excel()
     # test_decompose()
-    # test_framework()
+    test_framework()
     # plot_instance()
     # plot_dist_matrix()
     # plot_clusters()
-    analyze_overlap_gap_effect()
+    # analyze_overlap_gap_effect()
