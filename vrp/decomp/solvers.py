@@ -1,3 +1,6 @@
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
+
 from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
 from ..third_party.solver.hgs import tools
 from wurlitzer import pipes
@@ -8,9 +11,12 @@ from . import helpers
 from .constants import *
 
 logger = logger.getChild(__name__)
+infinity = float('inf')
 
 
 class HgsSolverWrapper(AbstractSolverWrapper):
+    '''Wraps HGS VRPTW solver.'''
+
     def __init__(self, time_limit=10, cpp_output=False, trivial_init_sol=False) -> None:
         self.time_limit = time_limit
         self.cpp_output = cpp_output
@@ -58,7 +64,7 @@ class HgsSolverWrapper(AbstractSolverWrapper):
 
 
     @helpers.log_run_time
-    def solve(self, inst: VRPInstance):
+    def solve(self, inst: VRPInstance) -> VRPSolution:
         # Calls the HGS solver with default config and passing in a
         # VRP problem instance.
 
@@ -95,12 +101,10 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         if self.cpp_output:
             logger.debug(f'Output from C++: \n {out.read()}')
 
-        infinity = float('inf')
         if solution is None:
             # no feasible solution found
             metrics = {
                 METRIC_COST: infinity,
-                METRIC_DISTANCE: infinity,
                 METRIC_WAIT_TIME: infinity,
             }
             # when called on decomposed instances, if one single
@@ -116,9 +120,201 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         # see bindings.cpp
         metrics = {
             METRIC_COST: solution.cost,
-            METRIC_DISTANCE: solution.distance,
             METRIC_WAIT_TIME: solution.waitTime,
         }
         sol = VRPSolution(solution.routes, metrics)
+        return sol
+
+
+class GortoolsSolverWrapper(AbstractSolverWrapper):
+    '''Wraps Google OR-Tools VRPTW solver. This is primarily for
+    experiments where wait time is included in the objective function because
+    HGS solver doesn't include wait time in its objective function.
+    '''
+
+    def __init__(self, time_limit=10, wait_time_in_obj_func=True) -> None:
+        self.time_limit = time_limit
+        # this flag should be kept True for actual experiments,
+        # it's used here mainly for testing purposes.
+        self.wait_time_in_obj_func = wait_time_in_obj_func
+
+
+    def build_data_for_gortools(self, inst: VRPInstance):
+        demand = []
+        time_window = []
+        service_time = []
+        time_matrix = []
+        for i in range(len(inst.nodes)):
+            node = inst.nodes[i]
+            demand.append(node.demand)
+            time_window.append((node.start_time, node.end_time))
+            service_time.append(node.service_time)
+            time_matrix.append(node.distances)
+
+        return dict(
+            demand = demand,
+            vehicle_cap = inst.vehicle_capacity,
+            time_window = time_window,
+            service_time = service_time,
+            time_matrix = time_matrix,
+        )
+
+
+    def get_time_callback(self, manager, time_matrix, service_time):
+
+        def time_callback(from_index, to_index):
+            """
+            Returns the driving time between the two nodes + service time
+            at end node.
+            """
+            # Convert from ortools internal routing variable index to
+            # time matrix node index.
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            # NOTE: add service time so the time dimension can correctly
+            # keep track of cumulative time at each node.
+            return time_matrix[from_node][to_node] + service_time[to_node]
+
+        return time_callback
+
+
+    def get_demand_callback(self, manager, demand):
+        
+        def demand_callback(index):
+            """Returns the demand of the node."""
+            node = manager.IndexToNode(index)
+            return demand[node]
+
+        return demand_callback
+
+
+    @helpers.log_run_time
+    def solve(self, inst: VRPInstance) -> VRPSolution:
+        depot_node_idx = 0
+        # Create the routing index manager.
+        manager = pywrapcp.RoutingIndexManager(
+            len(inst.nodes), # num_nodes
+            inst.extra['num_vehicles'],
+            depot_node_idx
+        )
+
+        # Create Routing Model.
+        routing = pywrapcp.RoutingModel(manager)
+
+        data = self.build_data_for_gortools(inst)
+        time_matrix = data['time_matrix']
+        service_time = data['service_time']
+        demand = data['demand']
+        vehicle_cap = data['vehicle_cap']
+
+        demand_callback = self.get_demand_callback(manager, demand)
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+
+        # Create capacity dimension for tracking cumulative vehicle capacity.
+        cap = 'Capacity'
+        # here all vehicles have the same capacity;
+        # if vehiclces have diff capacities, use AddDimensionWithVehicleCapacity,
+        # which takes a vector of capacities.
+        routing.AddDimension(
+            demand_callback_index,
+            0,              # no slack for capacity
+            vehicle_cap,    # max vehicle capacity
+            True,           # fix starting cumulative var to zero
+            cap,            # name of dimension
+        )
+
+        time_callback = self.get_time_callback(manager, time_matrix, service_time)
+        time_callback_index = routing.RegisterTransitCallback(time_callback)
+
+        # Create time dimension for tracking cumulative time.
+        time = 'Time'
+        depot_node = inst.nodes[depot_node_idx]
+        # upper bound for wait time and vehicle travel time
+        depot_tw_size = depot_node.end_time - depot_node.start_time
+        routing.AddDimension(
+            time_callback_index,
+            depot_tw_size,  # allow wait time (slack)
+            depot_tw_size,  # max time per vehicle
+            False,          # Don't fix starting cumulative var to zero.
+                            # In VRPTW a vehicle might not start at time 0.
+            time,           # name of dimension
+        )
+        time_dimension = routing.GetDimensionOrDie(time)
+
+        if self.wait_time_in_obj_func:
+            print('Considers total time (wait time included)\n')
+            time_dimension.SetSpanCostCoefficientForAllVehicles(1)
+        else:
+            print('Only considers driving time\n')
+            routing.SetArcCostEvaluatorOfAllVehicles(time_callback_index)
+
+        # Add hard time window constraints, shifted by service time so that
+        # for early arrival, wait time (slack in ortools term) can be
+        # correctly calculated; and late arrival is only truly late if vehicle
+        # can't arrive and finish service before the end time, bc time_callback
+        # already includes service time
+        for node_idx, time_window in enumerate(data['time_window']):
+            index = manager.NodeToIndex(node_idx)
+            time_dimension.CumulVar(index).SetRange(
+                time_window[0] + service_time[node_idx],
+                time_window[1] + service_time[node_idx],
+            )
+
+        for i in range(routing.vehicles()):
+            # arrive at the depot for departure as late as possible
+            routing.AddVariableMaximizedByFinalizer(
+                time_dimension.CumulVar(routing.Start(i)))
+            # return to depot as early as possible
+            routing.AddVariableMinimizedByFinalizer(
+                time_dimension.CumulVar(routing.End(i)))
+
+        # Setting first solution heuristic.
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = (
+            routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
+
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+        search_parameters.time_limit.seconds = self.time_limit
+
+        # Solve the problem.
+        solution = routing.SolveWithParameters(search_parameters)
+
+        if solution:
+            # exclude service time from solution cost
+            cost = solution.ObjectiveValue() - sum(service_time)
+            metrics = {
+                METRIC_COST: cost,
+                # wait time is expected to be included in objective function,
+                # so wait time alone is not calculated here, but can be
+                # calculated downstream based on routes. Include it here in
+                # `metrics` for compatibility with existing ExperimentRunner,
+                # where it's expected.
+                METRIC_WAIT_TIME: 0,
+            }
+            routes = []
+            for vehicle_id in range(routing.vehicles()):
+                if routing.IsVehicleUsed(solution, vehicle_id):
+                    route = []
+                    # here starting node is always depot
+                    index = routing.Start(vehicle_id)
+                    # depot is skipped - not included in the returned route list
+                    index = routing.Next(solution, index)
+                    while not routing.IsEnd(index):
+                        node_idx = manager.IndexToNode(index)
+                        route.append(node_idx)
+                        index = routing.Next(solution, index)
+
+                    routes.append(route)
+
+            sol = VRPSolution(routes, metrics)
+        else:
+            # no feasible solution found
+            metrics = {
+                METRIC_COST: infinity,
+                METRIC_WAIT_TIME: infinity,
+            }
+            sol = VRPSolution([], metrics)
+
         return sol
 

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 import vrp.decomp.helpers as helpers
-from vrp.decomp.solvers import HgsSolverWrapper
+from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 from vrp.decomp.decomposers import KMedoidsDecomposer
 from vrp.decomp.decomposition import DecompositionRunner
 from vrp.decomp.constants import *
@@ -575,6 +575,17 @@ def test_decompose():
     decomposer.decompose(converted_inst)
 
 
+def test_solver():
+    dir_name = SOLOMON
+    instance_name = 'RC206'
+    inst, converted_inst = read_instance(dir_name, instance_name)
+
+    # solver = HgsSolverWrapper(time_limit=5)
+    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
+    solution = solver.solve(converted_inst)
+    print_solution(solution, inst)
+
+
 def test_framework():
     dir_name = SOLOMON
     instance_name = 'RC206'
@@ -587,12 +598,14 @@ def test_framework():
     decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, num_clusters=num_clusters, use_overlap=True, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
+    print_solution(solution, inst)
 
+
+def print_solution(solution, inst):
     cost = solution.metrics[METRIC_COST]
     wait_time = solution.metrics[METRIC_WAIT_TIME]
     routes = solution.routes
     extra = solution.extra
-
 
     total_wait_time = 0
     total_time = 0
@@ -601,10 +614,9 @@ def test_framework():
         total_wait_time += route_wait_time
         total_time += route_time
 
-
-    print(f'cost: {cost}')
-    print(f'computed total time: {total_time}')
-    print(f'wait time: {wait_time}')
+    print(f'cost from solver: {cost}')
+    print(f'computed total travel time: {total_time}')
+    print(f'wait time from solver: {wait_time}')
     print(f'computed total wait time: {total_wait_time}')
     print(f'extra: {extra}')
     print(f'routes: {routes}')
@@ -618,7 +630,8 @@ if __name__ == '__main__':
     # test_get_constituents()
     # dist_matrix_to_excel()
     # test_decompose()
-    test_framework()
+    test_solver()
+    # test_framework()
     # plot_instance()
     # plot_dist_matrix()
     # plot_clusters()
