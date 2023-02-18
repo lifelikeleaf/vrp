@@ -19,7 +19,7 @@ TEST_DIR = 'Test'
 MARKER_SIZE = 10
 
 
-def compute_route_wait_time(route, inst, verbose=False):
+def compute_route_time_and_wait_time(route, inst, route_start=None, verbose=False):
     # `route` doesn't include depot; `inst` does include depot = 0
 
     depot = 0
@@ -34,23 +34,33 @@ def compute_route_wait_time(route, inst, verbose=False):
     # bc the earliest start time of the first node could be 0 and we can't
     # start at the first stop at time 0, bc we have to first travel from
     # deopt to the first stop
-    depot_earliest_departure_time = inst.earliest[depot] + inst.service_times[depot]
+    if route_start is not None:
+        depot_departure_time = route_start
+    else:
+        depot_departure_time = inst.earliest[depot] + inst.service_times[depot]
     # earliest possible arrival time at the first stop
     # = earliest possible time to leave the depot + travel time from depot to the first stop
     travel_time = inst.distances[depot][first_stop]
-    arrival_time = depot_earliest_departure_time + travel_time
+    arrival_time = depot_departure_time + travel_time
     # logical earliest start time at the first stop
     # = the later of arrival time and TW earliest start time
     tw_earliest_start = inst.earliest[first_stop]
+    tw_latest_start = inst.latest[first_stop]
     logical_earliest_start = max(arrival_time, tw_earliest_start)
     # departure time from the first node
     service_time = inst.service_times[first_stop]
     departure_time = logical_earliest_start + service_time
 
     if verbose:
-        print(f'first stop = {first_stop}', end=', ')
-        print(f'TW earliest start = {tw_earliest_start}', end=', ')
-        print(f'travel time from depot to first stop = {travel_time}', end=', ')
+        print('--------------- START ROUTE ---------------')
+        print(f'depot departure time = {depot_departure_time}')
+        print(f'travel time from depot to {first_stop} = {travel_time}', end=', ')
+        print(f'coords for deopot = {inst.coordinates[depot]}', end=', ')
+        print(f'coords for stop {first_stop} = {inst.coordinates[first_stop]}')
+
+        print(f'stop = {first_stop}', end=', ')
+        print(f'arrival time = {arrival_time}', end=', ')
+        print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
         print(f'logical earliest start = {logical_earliest_start}', end=', ')
         print(f'service time = {service_time}', end=', ')
         print(f'departure time = {departure_time}')
@@ -61,6 +71,7 @@ def compute_route_wait_time(route, inst, verbose=False):
         travel_time = inst.distances[prev_stop][stop]
         route_time += travel_time
         tw_earliest_start = inst.earliest[stop]
+        tw_latest_start = inst.latest[stop]
         arrival_time = departure_time + travel_time
         # Wait if we arrive before earliest start
         wait_time = max(0, tw_earliest_start - arrival_time)
@@ -73,9 +84,10 @@ def compute_route_wait_time(route, inst, verbose=False):
             print(f'travel time from {prev_stop} to {stop} = {travel_time}', end=', ')
             print(f'coords for prev stop {prev_stop} = {inst.coordinates[prev_stop]}', end=', ')
             print(f'coords for stop {stop} = {inst.coordinates[stop]}')
+
             print(f'stop = {stop}', end=', ')
             print(f'arrival time = {arrival_time}', end=', ')
-            print(f'TW earliest start = {tw_earliest_start}', end=', ')
+            print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
             print(f'wait time={wait_time}', end=', ')
             print(f'logical earliest start = {logical_earliest_start}', end=', ')
             print(f'service time = {service_time}', end=', ')
@@ -84,9 +96,27 @@ def compute_route_wait_time(route, inst, verbose=False):
 
         prev_stop = stop
 
-    route_time += inst.distances[prev_stop][depot]
+    # back to the depot
+    travel_time = inst.distances[prev_stop][depot]
+    route_time += travel_time
+    arrival_time = departure_time + travel_time
+    tw_earliest_start = inst.earliest[depot]
+    tw_latest_start = inst.latest[depot]
 
-    return route_wait_time, route_time
+    if verbose:
+        print(f'travel time from {prev_stop} to depot = {inst.distances[prev_stop][depot]}', end=', ')
+        print(f'coords for prev stop {prev_stop} = {inst.coordinates[prev_stop]}', end=', ')
+        print(f'coords for depot = {inst.coordinates[depot]}')
+        print(f'return time to depot = {arrival_time}', end=', ')
+        print(f'depot TW = [{tw_earliest_start}, {tw_latest_start}]')
+        print()
+
+        print(f'route time = {route_time}')
+        print(f'route wait time = {route_wait_time}')
+        print('--------------- END ROUTE ---------------')
+        print()
+
+    return route_time, route_wait_time
 
 
 def list_benchmark_names():
@@ -577,11 +607,13 @@ def test_decompose():
 
 def test_solver():
     dir_name = SOLOMON
-    instance_name = 'RC206'
+    instance_name = 'R101'
     inst, converted_inst = read_instance(dir_name, instance_name)
 
+    print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=5)
-    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
+    # solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=False, debug=True)
+    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True, debug=True)
     solution = solver.solve(converted_inst)
     print_solution(solution, inst)
 
@@ -592,10 +624,11 @@ def test_framework():
     num_clusters = 2
     inst, converted_inst = read_instance(dir_name, instance_name)
 
-    solver = HgsSolverWrapper(time_limit=5)
-    # solution = solver.solve(converted_inst)
+    print(f'instance: {instance_name}')
+    # solver = HgsSolverWrapper(time_limit=5)
+    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, num_clusters=num_clusters, use_overlap=True, use_gap=True)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v2_5_vectorized, num_clusters=num_clusters, use_overlap=True, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
     print_solution(solution, inst)
@@ -607,18 +640,31 @@ def print_solution(solution, inst):
     routes = solution.routes
     extra = solution.extra
 
+    route_start = None
+    if extra is not None: # currently this is only the case if debug=True for GortoolsSolverWrapper
+        ortools_solution_obj = extra[EXTRA_SOLUTION_OBJ]
+        routing = extra[EXTRA_ROUTING_MODEL]
+        start_indices = extra[EXTRA_START_INDICES]
+        time_dimension = routing.GetDimensionOrDie(DIMENSION_TIME)
+
     total_wait_time = 0
     total_time = 0
-    for route in routes:
-        route_wait_time, route_time = compute_route_wait_time(route, inst, verbose=False)
-        total_wait_time += route_wait_time
+    for i, route in enumerate(routes):
+        if extra is not None:
+            start_index = start_indices[i]
+            time_var = time_dimension.CumulVar(start_index)
+            route_start = ortools_solution_obj.Max(time_var)
+
+        route_time, route_wait_time = compute_route_time_and_wait_time(route, inst, route_start, verbose=False)
         total_time += route_time
+        total_wait_time += route_wait_time
 
     print(f'cost from solver: {cost}')
     print(f'computed total travel time: {total_time}')
     print(f'wait time from solver: {wait_time}')
     print(f'computed total wait time: {total_wait_time}')
-    print(f'extra: {extra}')
+    # print(f'extra: {extra}')
+    print(f'num routes: {len(routes)}')
     print(f'routes: {routes}')
 
 

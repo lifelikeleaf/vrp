@@ -3,10 +3,16 @@ CVRPLIB = 'CVRPLIB'
 SOLOMON = 'Vrp-Set-Solomon' # n=100; 56 instances
 HG = 'Vrp-Set-HG' # n=[200, 400, 600, 800, 1000]; 60 instances each
 
-# metrics returned by HGS solver
+# metrics and extra data returned by the solver
 METRIC_COST = 'cost'
-METRIC_DISTANCE = 'distance'
 METRIC_WAIT_TIME = 'wait_time'
+EXTRA_SOLUTION_OBJ = 'solution_obj'
+EXTRA_ROUTING_MODEL = 'routing_model'
+EXTRA_START_INDICES = 'start_indices'
+
+# ortools dimension names
+DIMENSION_TIME = 'time'
+DIMENSION_CAPACITY = 'capacity'
 
 # keys for data output
 KEY_COST = 'cost'
@@ -18,6 +24,15 @@ KEY_NUM_SUBPROBS = 'num_subprobs'
 KEY_EXPERIMENT_NAME = 'experiment_name'
 KEY_ROUTES = 'routes'
 
+# ortools solver status
+# https://developers.google.com/optimization/routing/routing_options#search_status
+SOLVER_STATUS = {
+    0: 'ROUTING_NOT_SOLVED: Problem not solved yet.',
+    1: 'ROUTING_SUCCESS: Problem solved successfully.',
+    2: 'ROUTING_FAIL: No solution found to the problem.',
+    3: 'ROUTING_FAIL_TIMEOUT: Time limit reached before finding a solution.',
+    4: 'ROUTING_INVALID: Model, model parameters, or flags are not valid.',
+}
 
 # run on a deterministic set of instances rather than a random sample
 # so that new experiments can be compared to old ones w/o rerunning old ones

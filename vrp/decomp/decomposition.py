@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 from multiprocessing import Pool
 from typing import Union, Any
+from collections import defaultdict
 
 from .logger import logger
 
@@ -155,12 +156,12 @@ class VRPSolution:
         A dict of aggregatable metrics, e.g. cost, wait time.
 
     Optional:
-        extra: list[Any]
-            A list of additional data to include.
+        extra: dict
+            A dict of additional data to include.
     """
     routes: list[Route]
     metrics: dict[str, Number]
-    extra: list[Any] = None
+    extra: dict = None
 
 
 class AbstractDecomposer(ABC):
@@ -324,15 +325,17 @@ class DecompositionRunner:
                 total_metrics[key] = val
 
         total_routes.extend(solution.routes)
+
         if solution.extra is not None:
-            total_extra.extend(solution.extra)
+            for key, val in solution.extra.items():
+                total_extra[key].append(val)
 
 
     def _run_solver_sequential(self):
         """Run solver on decomposed subproblems sequentially."""
         total_routes = []
         total_metrics = {}
-        total_extra = []
+        total_extra = defaultdict(list)
         for cluster in self.decomposer.clusters:
             decomp_inst = self._build_decomposed_instance(cluster)
             solution = \
@@ -364,7 +367,7 @@ class DecompositionRunner:
 
         total_routes = []
         total_metrics = {}
-        total_extra = []
+        total_extra = defaultdict(list)
         for solution in results:
             self._aggregate(solution, total_routes, total_metrics, total_extra)
 
