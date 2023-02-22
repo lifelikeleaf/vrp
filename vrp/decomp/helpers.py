@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 import os
 import argparse
 import math

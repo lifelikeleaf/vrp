@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
 from sklearn_extra.cluster import KMedoids

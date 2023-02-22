@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 """A minimal framework for decomposition of VRP and VRPTW problems.
 
 This work only considers a single depot and homogeneous fleet, but users could

@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 # dir names for benchmark data sets
 CVRPLIB = 'CVRPLIB'
 SOLOMON = 'Vrp-Set-Solomon' # n=100; 56 instances

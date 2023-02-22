@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 from functools import lru_cache
 from scipy.spatial.distance import euclidean as scipy_euclidean
 import numpy as np

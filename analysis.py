@@ -1,3 +1,5 @@
+# Author: Xu Ye <kan.ye@tum.de>
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
