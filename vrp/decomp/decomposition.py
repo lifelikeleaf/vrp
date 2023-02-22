@@ -156,12 +156,12 @@ class VRPSolution:
         A dict of aggregatable metrics, e.g. cost, wait time.
 
     Optional:
-        extra: dict
-            A dict of additional data to include.
+        extra: dict[list]
+            A dict of list of additional data to include.
     """
     routes: list[Route]
     metrics: dict[str, Number]
-    extra: dict = None
+    extra: dict[list] = None
 
 
 class AbstractDecomposer(ABC):
@@ -328,7 +328,7 @@ class DecompositionRunner:
 
         if solution.extra is not None:
             for key, val in solution.extra.items():
-                total_extra[key].append(val)
+                total_extra[key].extend(val)
 
 
     def _run_solver_sequential(self):

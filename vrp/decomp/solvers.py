@@ -132,12 +132,11 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
     HGS solver doesn't include wait time in its objective function.
     '''
 
-    def __init__(self, time_limit=10, wait_time_in_obj_func=True, debug=False) -> None:
+    def __init__(self, time_limit=10, wait_time_in_obj_func=True) -> None:
         self.time_limit = time_limit
         # this flag should be kept True for actual experiments,
         # it's used here mainly for testing purposes.
         self.wait_time_in_obj_func = wait_time_in_obj_func
-        self.debug = debug
 
 
     def build_data_for_gortools(self, inst: VRPInstance):
@@ -337,7 +336,7 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
 
         # Solve the problem.
         solution = routing.SolveWithParameters(search_parameters)
-        logger.info(f'status: {routing.status()} - {SOLVER_STATUS[routing.status()]}')
+        logger.info(f'status: {routing.status()} = {SOLVER_STATUS[routing.status()]}')
 
         if solution:
             # exclude service time from solution cost
@@ -352,13 +351,16 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
                 METRIC_WAIT_TIME: 0,
             }
             routes = []
-            start_indices = []
+            route_starts = []
             for vehicle_id in range(routing.vehicles()):
                 if routing.IsVehicleUsed(solution, vehicle_id):
                     route = []
                     # here starting node is always depot
                     index = routing.Start(vehicle_id)
-                    start_indices.append(index)
+                    time_var = time_dimension.CumulVar(index)
+                    # departure time from the depot for this route
+                    route_start = solution.Max(time_var)
+                    route_starts.append(route_start)
                     # depot is skipped - not included in the returned route list
                     index = routing.Next(solution, index)
                     while not routing.IsEnd(index):
@@ -369,14 +371,10 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
                     routes.append(route)
 
             sol = VRPSolution(routes, metrics)
-
-            # for debugging and validation purposes only
-            if self.debug:
-                sol.extra = {
-                    EXTRA_SOLUTION_OBJ: solution,
-                    EXTRA_ROUTING_MODEL: routing,
-                    EXTRA_START_INDICES: start_indices,
-                }
+            # for validation purposes
+            sol.extra = {
+                EXTRA_ROUTE_STARTS: route_starts,
+            }
         else:
             # no feasible solution found
             metrics = {

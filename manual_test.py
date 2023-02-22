@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+import itertools
 
 import cvrplib
 import numpy as np
@@ -612,8 +613,8 @@ def test_solver():
 
     print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=5)
-    # solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=False, debug=True)
-    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True, debug=True)
+    # solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=False)
+    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
     solution = solver.solve(converted_inst)
     print_solution(solution, inst)
 
@@ -640,20 +641,15 @@ def print_solution(solution, inst):
     routes = solution.routes
     extra = solution.extra
 
-    route_start = None
-    if extra is not None: # currently this is only the case if debug=True for GortoolsSolverWrapper
-        ortools_solution_obj = extra[EXTRA_SOLUTION_OBJ]
-        routing = extra[EXTRA_ROUTING_MODEL]
-        start_indices = extra[EXTRA_START_INDICES]
-        time_dimension = routing.GetDimensionOrDie(DIMENSION_TIME)
+    if extra is not None:
+        route_starts = extra[EXTRA_ROUTE_STARTS]
 
+    route_start = None
     total_wait_time = 0
     total_time = 0
     for i, route in enumerate(routes):
         if extra is not None:
-            start_index = start_indices[i]
-            time_var = time_dimension.CumulVar(start_index)
-            route_start = ortools_solution_obj.Max(time_var)
+            route_start = route_starts[i]
 
         route_time, route_wait_time = compute_route_time_and_wait_time(route, inst, route_start, verbose=False)
         total_time += route_time
@@ -663,7 +659,7 @@ def print_solution(solution, inst):
     print(f'computed total travel time: {total_time}')
     print(f'wait time from solver: {wait_time}')
     print(f'computed total wait time: {total_wait_time}')
-    # print(f'extra: {extra}')
+    print(f'extra: {extra}')
     print(f'num routes: {len(routes)}')
     print(f'routes: {routes}')
 
@@ -676,8 +672,8 @@ if __name__ == '__main__':
     # test_get_constituents()
     # dist_matrix_to_excel()
     # test_decompose()
-    test_solver()
-    # test_framework()
+    # test_solver()
+    test_framework()
     # plot_instance()
     # plot_dist_matrix()
     # plot_clusters()

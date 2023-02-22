@@ -6,9 +6,7 @@ HG = 'Vrp-Set-HG' # n=[200, 400, 600, 800, 1000]; 60 instances each
 # metrics and extra data returned by the solver
 METRIC_COST = 'cost'
 METRIC_WAIT_TIME = 'wait_time'
-EXTRA_SOLUTION_OBJ = 'solution_obj'
-EXTRA_ROUTING_MODEL = 'routing_model'
-EXTRA_START_INDICES = 'start_indices'
+EXTRA_ROUTE_STARTS = 'route_starts'
 
 # ortools dimension names
 DIMENSION_TIME = 'time'
