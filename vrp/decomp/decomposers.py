@@ -2,6 +2,7 @@
 
 from sklearn.cluster import KMeans
 from sklearn.cluster import AffinityPropagation as AP
+from sklearn.cluster import AgglomerativeClustering as Hierarchical
 from sklearn_extra.cluster import KMedoids
 
 from .decomposition import AbstractDecomposer
@@ -68,7 +69,6 @@ class BaseDecomposer(AbstractDecomposer):
 
         assert num_clusters == len(list_clusters)
         logger.info(f'Num clusters found: {num_clusters}')
-        # TODO: dump to json?
         logger.debug(f'Clusters found (with inertia = {inertia}):')
         for i, cluster in enumerate(list_clusters):
             logger.debug(f'cluster {i}: \n{cluster}')
@@ -131,10 +131,14 @@ class KMeansDecomposer(BaseDecomposer):
     @helpers.log_run_time
     def decompose(self, inst):
         fv = helpers.build_feature_vectors(inst, standardize=False)
+        fv = fv.data
+        x, y, start, end = list(zip(*fv))
+        # only use geo coords as features
+        fv = list(zip(x, y))
         logger.info('')
         logger.info('Running k-means...')
         kmeans = KMeans(n_clusters=self.num_clusters, n_init=10)
-        kmeans.fit(fv.data)
+        kmeans.fit(fv)
         labels = kmeans.labels_
         return self.get_clusters(labels)
 
@@ -192,11 +196,31 @@ class APDecomposer(BaseDistanceMatrixBasedDecomposer):
 
         ap = AP(affinity=affinity).fit(X)
         labels = ap.labels_
-        # AP doesn't need num_clusters as an initial parameter,
-        # it finds a certain number of clusters based on the algorithm.
-        # So self.num_clusters from the constructor may not be correct,
-        # thus assign self.num_clusters to the actual number of clusters
-        # found by AP.
-        # self.num_clusters = len(ap.cluster_centers_indices_)
+        return self.get_clusters(labels)
+
+
+class HierarchicalDecomposer(BaseDistanceMatrixBasedDecomposer):
+    # https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html
+    @helpers.log_run_time
+    def decompose(self, inst):
+        fv = helpers.build_feature_vectors(inst)
+
+        metric = 'precomputed'
+        X = self.dist_matrix_func(fv, self)
+        # {‘ward’, ‘complete’, ‘average’, ‘single’}, default=’ward’
+        # Agglomerative cluster has a "rich get richer" behavior that leads
+        # to uneven cluster sizes. In this regard, single linkage is the
+        # worst strategy, and Ward gives the most regular sizes. However,
+        # ward only works when metric='euclidean', thus for non Euclidean
+        # metrics, average linkage is a good alternative.
+        linkage = 'average'
+
+        ac = Hierarchical(
+            n_clusters=self.num_clusters,
+            metric=metric,
+            linkage=linkage,
+        )
+        ac.fit(X)
+        labels = ac.labels_
         return self.get_clusters(labels)
 

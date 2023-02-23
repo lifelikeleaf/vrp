@@ -12,7 +12,9 @@ import networkx as nx
 
 import vrp.decomp.helpers as helpers
 from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
-from vrp.decomp.decomposers import KMedoidsDecomposer
+from vrp.decomp.decomposers import (
+    KMedoidsDecomposer, APDecomposer, KMeansDecomposer, HierarchicalDecomposer
+)
 from vrp.decomp.decomposition import DecompositionRunner
 from vrp.decomp.constants import *
 import vrp.decomp.distance_matrices as DM
@@ -153,7 +155,7 @@ def test_read_json():
 
 
 def test_get_clusters():
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None)
     labels = [0, 1, 1, 3, 0, 0, 3, 3, 3, 1, 1]
     clusters = decomposer.get_clusters(labels)
     assert clusters == [[1, 5, 6], [2, 3, 10, 11], [4, 7, 8, 9]]
@@ -463,13 +465,14 @@ def plot_dist_matrix():
 def plot_clusters():
     dir_name = HG
     instance_name = 'R1_2_1'
-    num_clusters = 2
+    num_clusters = 3
     # overlap, gap, norm
     euc = (False, False, False)
     ol = (True, False, True)
     gap = (False, True, True)
-    flag = ol
+    flag = euc
     dist_matrix_func = DM.v2_3_vectorized
+    dist_matrix_func = DM.euclidean_vectorized
 
     ext = ''
     ext += ' overlap' if flag[0] else ''
@@ -479,14 +482,15 @@ def plot_clusters():
     inst, converted_inst = read_instance(dir_name, instance_name)
     title = dist_matrix_func.__name__.removesuffix('_vectorized')
     title += ext
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
+    # decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
+    decomposer = HierarchicalDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
     decomposer.num_clusters = num_clusters
     clusters = decomposer.decompose(converted_inst)
 
     coords = np.asarray(inst.coordinates)
     depot = coords[0]
     fig, ax = plt.subplots()
-    ax.scatter(depot[0], depot[1], label='depot', c='red', s=MARKER_SIZE*2, marker='s') # square
+    ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE*2, marker='s') # square
 
     for i, cluster in enumerate(clusters):
         x, y = zip(*coords[cluster].tolist())
@@ -602,36 +606,43 @@ def test_decompose():
     dir_name = SOLOMON
     instance_name = 'C101'
     inst, converted_inst = read_instance(dir_name, instance_name)
+    dist_matrix_func = DM.euclidean_vectorized
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v1, use_overlap=True)
-    decomposer.num_clusters = 5
-    decomposer.decompose(converted_inst)
+    # decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True)
+    decomposer = HierarchicalDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True)
+    decomposer.num_clusters = 3
+    clusters = decomposer.decompose(converted_inst)
+    print(clusters)
 
 
 def test_solver():
-    dir_name = SOLOMON
-    instance_name = 'R101'
+    dir_name = HG
+    instance_name = 'R1_10_1'
     inst, converted_inst = read_instance(dir_name, instance_name)
+    time_limit = 10
 
     print(f'instance: {instance_name}')
-    # solver = HgsSolverWrapper(time_limit=5)
-    # solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=False)
-    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
+    solver = HgsSolverWrapper(time_limit=time_limit, init_sol=True)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
     solution = solver.solve(converted_inst)
     print_solution(solution, inst)
 
 
 def test_framework():
-    dir_name = SOLOMON
-    instance_name = 'RC206'
-    num_clusters = 2
+    dir_name = HG
+    instance_name = 'R1_10_1'
+    num_clusters = 4
     inst, converted_inst = read_instance(dir_name, instance_name)
+    dist_matrix_func = DM.euclidean_vectorized
+    time_limit = 10
 
     print(f'instance: {instance_name}')
-    # solver = HgsSolverWrapper(time_limit=5)
-    solver = GortoolsSolverWrapper(time_limit=5, wait_time_in_obj_func=True)
+    # solver = HgsSolverWrapper(time_limit=time_limit)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=DM.v2_5_vectorized, num_clusters=num_clusters, use_overlap=True, use_gap=True)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_overlap=True, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
     print_solution(solution, inst)
@@ -675,8 +686,8 @@ if __name__ == '__main__':
     # dist_matrix_to_excel()
     # test_decompose()
     # test_solver()
-    test_framework()
+    # test_framework()
     # plot_instance()
     # plot_dist_matrix()
-    # plot_clusters()
+    plot_clusters()
     # analyze_overlap_gap_effect()

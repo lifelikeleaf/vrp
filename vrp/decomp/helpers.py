@@ -224,7 +224,7 @@ def build_feature_vectors(inst, standardize=False):
     class FV():
         """lru_cache requires function arguments to be hashable.
         Wrap a feature_vectors NDArray inside a user defined class
-        to make it hashable.
+        to make it hashable for dist_matrix.
         """
         def __init__(self, data: np.ndarray) -> None:
             self.data = data
