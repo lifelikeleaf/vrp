@@ -19,10 +19,10 @@ infinity = float('inf')
 class HgsSolverWrapper(AbstractSolverWrapper):
     '''Wraps HGS VRPTW solver.'''
 
-    def __init__(self, time_limit=10, cpp_output=False, trivial_init_sol=False) -> None:
+    def __init__(self, time_limit=10, cpp_output=False, init_sol=False) -> None:
         self.time_limit = time_limit
         self.cpp_output = cpp_output
-        self.trivial_init_sol = trivial_init_sol
+        self.init_sol = init_sol
 
 
     def build_instance_for_hgs(self, inst: VRPInstance):
@@ -73,12 +73,15 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         instance = self.build_instance_for_hgs(inst)
 
         initial_solution = ''
-        if self.trivial_init_sol:
+        if self.init_sol:
             def to_giant_tour_str(routes, with_depot=True):
                 return " ".join(map(str, tools.to_giant_tour(routes, with_depot)))
 
-            # trivial initial solution: one tour per customer
-            initial_solution = [[i] for i in range(1, len(instance['coords']))]
+            # use ortools for initial solution
+            # without it, HGS can't find a feasible solution even in 60 sec for
+            # some instances, such as R1_10_1, but it seems that HGS still
+            # has difficulties improving this initial solution
+            initial_solution = GortoolsSolverWrapper(wait_time_in_obj_func=False).solve(inst).routes
             initial_solution = to_giant_tour_str(initial_solution)
 
         # Capture C-level stdout/stderr
