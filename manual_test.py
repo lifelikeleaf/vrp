@@ -149,8 +149,18 @@ def test_normalize_matrix():
     print(type(m))
 
 def test_read_json():
-    file_name = 'k_medoids'
+    file_name = 'test'
     data = helpers.read_json(file_name)
+    print(len(data))
+
+
+def test_read_json_gen():
+    file_name = 'test'
+    json_gen = helpers.read_json_gen(file_name)
+    # print(next(json_gen))
+    data = []
+    for item in json_gen:
+        data.append(item)
     print(len(data))
 
 
@@ -617,32 +627,32 @@ def test_decompose():
 
 def test_solver():
     dir_name = HG
-    instance_name = 'R1_10_1'
+    instance_name = 'C1_10_2'
     inst, converted_inst = read_instance(dir_name, instance_name)
     time_limit = 10
 
     print(f'instance: {instance_name}')
-    solver = HgsSolverWrapper(time_limit=time_limit, init_sol=True)
+    # solver = HgsSolverWrapper(time_limit=time_limit, init_sol=True)
     # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
-    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
     solution = solver.solve(converted_inst)
     print_solution(solution, inst)
 
 
 def test_framework():
     dir_name = HG
-    instance_name = 'R1_10_1'
-    num_clusters = 4
+    instance_name = 'R2_10_1'
+    num_clusters = 2
     inst, converted_inst = read_instance(dir_name, instance_name)
-    dist_matrix_func = DM.euclidean_vectorized
+    dist_matrix_func = DM.v2_2_vectorized
     time_limit = 10
 
     print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=time_limit)
-    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
-    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_overlap=True, use_gap=True)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
     print_solution(solution, inst)
@@ -679,6 +689,8 @@ def print_solution(solution, inst):
 
 if __name__ == '__main__':
     # test_normalize_matrix()
+    # test_read_json()
+    test_read_json_gen()
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
@@ -689,5 +701,5 @@ if __name__ == '__main__':
     # test_framework()
     # plot_instance()
     # plot_dist_matrix()
-    plot_clusters()
+    # plot_clusters()
     # analyze_overlap_gap_effect()

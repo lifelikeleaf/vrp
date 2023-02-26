@@ -314,9 +314,9 @@ class _PairwiseDistance:
             # temporal_dist = -1 * gap / euclidean_dist
             temporal_dist = -1 * helpers.safe_divide(1, self.euclidean_dist) * self.gap
 
-            # TODO: experiment with including wait time in OF
-            # value - it's not considered by HGS solver and it's not
-            # trivial to add it; check GOR Tools?
+            # TODO: rename to penalize_wait_time or min_total_time
+            # bc wait time isn't minimized, total time (including wait time)
+            # is minimized, wait time is penalized.
             if self.decomposer.minimize_wait_time:
                 # but if wait time IS included in objective function,
                 # then large gap b/t time windows is a penalty,
@@ -371,7 +371,6 @@ def _pairwise_dist_v2_2(stats, decomposer, weight_limit=1):
     temporal_weight = 0
     spatial_temporal_dist = euclidean_dist
     if overlap > 0 and decomposer.use_overlap:
-        # TODO: refactor? this is the only line that differs b/t v2.1 and v2.2
         temporal_weight = relative_overlap * (1 - relative_tw_width) * weight_limit
         spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
     elif gap > 0 and decomposer.use_gap:

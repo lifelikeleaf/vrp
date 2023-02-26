@@ -197,6 +197,17 @@ def read_json(file_name):
     return data
 
 
+def read_json_gen(file_name):
+    '''generator version of read_json'''
+    file_name = file_name + '.json'
+    # reading a file with multiple json objects must read 1 line/1 json object
+    # at a time, bc json.load() can only handle a single json object
+    with open(file_name) as f:
+        for line in f:
+            py_obj = json.loads(line)
+            yield py_obj
+
+
 def sleep(sec, logger_name=__name__):
     log = logger.getChild(logger_name)
     log.info(f'Sleeping for {sec} sec')

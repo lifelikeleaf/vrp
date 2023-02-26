@@ -14,6 +14,7 @@ reincorporated to form independent subproblems that are smaller VRP instances.
 A clarification of terminology:
 - A cluster is a subset of customers.
 - A subproblem is a cluster + the depot.
+In general, these two terms are used interchangeably, depending on the context.
 
 """
 
