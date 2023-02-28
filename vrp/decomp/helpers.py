@@ -225,22 +225,21 @@ def make_dirs(dir_name):
     os.makedirs(os.path.dirname(dir_name), exist_ok=True)
 
 
+class FV():
+    """lru_cache requires function arguments to be hashable.
+    Wrap a feature_vectors NDArray inside a user defined class
+    to make it hashable for dist_matrix.
+    """
+    def __init__(self, data: np.ndarray) -> None:
+        self.data = data
+
+
 @lru_cache(maxsize=1)
 def build_feature_vectors(inst, standardize=False):
     """Build feature vectors for clustering from VRP problem instance.
     A list of feature vectors representing the customer nodes
     to be clustered, excluding the depot.
     """
-
-    class FV():
-        """lru_cache requires function arguments to be hashable.
-        Wrap a feature_vectors NDArray inside a user defined class
-        to make it hashable for dist_matrix.
-        """
-        def __init__(self, data: np.ndarray) -> None:
-            self.data = data
-
-
     fv_data = []
     nodes = inst.nodes
     for i in range(len(nodes)):
@@ -252,6 +251,8 @@ def build_feature_vectors(inst, standardize=False):
         row.append(nodes[i].start_time)
         # lastest service start time for customer i
         row.append(nodes[i].end_time)
+        # service time for customer i
+        row.append(nodes[i].service_time)
 
         fv_data.append(row)
 

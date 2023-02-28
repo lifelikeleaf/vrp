@@ -289,9 +289,6 @@ def trial_formulas(stats):
 
 def test_get_constituents(to_excel=False):
     dir_name = SOLOMON
-    'C101'
-    'R202' # -3.6%
-    'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     file_name = os.path.join(TEST_DIR, 'stats_matrix')
     norm = True
@@ -690,14 +687,22 @@ def test_antiderivative_vs_quad():
     def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):
         return antiderivative(upper_limit, **kwargs) - antiderivative(lower_limit, **kwargs)
 
-    # (i, j) = (1, 2)
-    a = 1004
-    b = 1059
     k1 = 1
     k2 = 1.5
     k3 = 2
-    start_times_j = 65
-    end_times_j = 146
+
+    # For instance C101
+    # (i, j) = (1, 2)
+    # a = 1004 # a' = lower_limit of integral
+    # b = 1059 # b' = upper_limit of integral
+    # start_times_j = 825 # c
+    # end_times_j = 870 # d
+
+    # (i, j) = (2, 1)
+    a = 917 # a' = lower_limit of integral
+    b = 962 # b' = upper_limit of integral
+    start_times_j = 912 # c
+    end_times_j = 967 # d
 
     def k1_integrand(x, k1, d):
         return -k1 * x + k1 * d
@@ -739,14 +744,35 @@ def test_antiderivative_vs_quad():
     print(k3_result)
 
 
-def test_dist_matrix_qi_2012():
+def test_dist_matrix_qi_2012(use_mock_data=False):
     dir_name = SOLOMON
     instance_name = 'C101'
     dist_matrix_func = DM.qi_2012_vectorized
     _, converted_inst = read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
-    feature_vectors = helpers.build_feature_vectors(converted_inst)
-    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+
+    if not use_mock_data:
+        feature_vectors = helpers.build_feature_vectors(converted_inst)
+        dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+        print(dist_matrix[3, 3])
+        print(dist_matrix[0, 1])
+        print(dist_matrix[1, 0])
+    else:
+        # mock data from Qi 2012
+        fv_data = [
+            [50, 50, 0, 720, 0], # depot
+            [10, 10, 60, 120, 10],
+            [30, 10, 420, 480, 10],
+            [30, 30, 60, 120, 10],
+            [70, 70, 420, 480, 10],
+            [70, 90, 60, 120, 10],
+            [90, 90, 420, 480, 10],
+        ]
+        fv_data = np.asarray(fv_data)
+        feature_vectors = helpers.FV(fv_data[1:])
+
+        dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+        print(dist_matrix)
 
 
 if __name__ == '__main__':
@@ -765,5 +791,5 @@ if __name__ == '__main__':
     # plot_dist_matrix()
     # plot_clusters()
     # analyze_overlap_gap_effect()
-    test_antiderivative_vs_quad()
-    # test_dist_matrix_qi_2012()
+    # test_antiderivative_vs_quad()
+    test_dist_matrix_qi_2012(use_mock_data=True)

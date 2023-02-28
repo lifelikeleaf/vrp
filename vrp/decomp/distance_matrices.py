@@ -68,7 +68,7 @@ def euclidean_vectorized(feature_vectors, decomposer):
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_euclidean_dist)
 
 
-def qi_2012_vectorized(feature_vectors, decomposer):
+def qi_2012_vectorized(feature_vectors, decomposer=None):
     '''Based on:
     Qi, M., Lin, W. H., Li, N., & Miao, L. (2012). A spatiotemporal
     partitioning approach for large-scale vehicle routing problems
@@ -78,7 +78,9 @@ def qi_2012_vectorized(feature_vectors, decomposer):
     k1 = 1
     k2 = 1.5
     k3 = 2
-    return _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3)
+    alpha1 = 0.5
+    alpha2 = 0.5
+    return _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
 
 
 ''' DEPRECATED: use vectorized versions instead'''
@@ -285,9 +287,16 @@ class _PairwiseDistance:
 
     def compute_constituents(self):
         # node_i and node_j are feature_vectors from 2 different nodes,
-        # in the format: [x, y, tw_start, tw_end]
-        x_i, y_i, start_i, end_i = self.node_i
-        x_j, y_j, start_j, end_j = self.node_j
+        # in the format: [x, y, tw_start, tw_end, service_time]
+        x_i = self.node_i[0]
+        y_i = self.node_i[1]
+        start_i = self.node_i[2]
+        end_i = self.node_i[3]
+
+        x_j = self.node_j[0]
+        y_j = self.node_j[1]
+        start_j = self.node_j[2]
+        end_j = self.node_j[3]
         self.tw_width_i = end_i - start_i
         self.tw_width_j = end_j - start_j
 
@@ -464,7 +473,10 @@ def _get_constituents_matrix(fv, decomposer):
     gap_matrix = np.zeros((n, n))
     # stats = pd.DataFrame()
 
-    x, y, start, end = np.asarray(list(zip(*fv)))
+    x = np.asarray(list(zip(*fv)))[0]
+    y = np.asarray(list(zip(*fv)))[1]
+    start = np.asarray(list(zip(*fv)))[2]
+    end = np.asarray(list(zip(*fv)))[3]
     planning_horizon = end.max() - start.min()
 
     # get pairwise constituents, for normalization purposes
@@ -576,7 +588,10 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
     overlaps = np.where(overlaps_or_gaps > 0, overlaps_or_gaps, 0)
     gaps = np.where(overlaps_or_gaps < 0, np.absolute(overlaps_or_gaps), 0)
 
-    x, y, start, end = np.asarray(list(zip(*fv)))
+    x = np.asarray(list(zip(*fv)))[0]
+    y = np.asarray(list(zip(*fv)))[1]
+    start = np.asarray(list(zip(*fv)))[2]
+    end = np.asarray(list(zip(*fv)))[3]
     planning_horizon = end.max() - start.min()
 
     if as_matrix:
@@ -687,7 +702,7 @@ def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_di
 
 @lru_cache(maxsize=1)
 @helpers.log_run_time
-def _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3):
+def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2):
     fv = feature_vectors.data
 
     n = len(fv)
@@ -702,16 +717,30 @@ def _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3):
 
     x_coords_i = nodes_i[:, 0]
     y_coords_i = nodes_i[:, 1]
-    start_times_i = nodes_i[:, 2] # a
-    end_times_i = nodes_i[:, 3] # b
-    # TODO: get service time from instance
-    # for now hard coded service time
-    # for R and RC instances, service time = 10
-    # for C instances, service time = 90
-    service_time_i = 90
-
     x_coords_j = nodes_j[:, 0]
     y_coords_j = nodes_j[:, 1]
+    euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2) # t_ij
+
+    temporal_dists_ij = qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists)
+    temporal_dists_ji = qi_2012_temporal_dists_directional(nodes_j, nodes_i, k1, k2, k3, euclidean_dists)
+    temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
+
+    spatiotemporal_dists = alpha1 * helpers.normalize_matrix(euclidean_dists) + alpha2 * helpers.normalize_matrix(temporal_dists)
+
+    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
+    # fill the upper triangle
+    dist_matrix[i, j] = spatiotemporal_dists
+    # fill the lower triangle
+    dist_matrix += dist_matrix.T
+
+    return dist_matrix
+
+
+def qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists):
+    start_times_i = nodes_i[:, 2] # a
+    end_times_i = nodes_i[:, 3] # b
+    service_times_i = nodes_i[:, 4] # s_i
+
     start_times_j = nodes_j[:, 2] # c
     end_times_j = nodes_j[:, 3] # d
 
@@ -720,10 +749,9 @@ def _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3):
 
     max_tw_widths = np.maximum(tw_widths_i, tw_widths_j)
     A = max(max_tw_widths) # maximum time window width among all customers
-    euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2) # t_ij
 
-    arrival_times_j_low = start_times_i + service_time_i + euclidean_dists # a'
-    arrival_times_j_high = end_times_i + service_time_i + euclidean_dists # b'
+    arrival_times_j_low = start_times_i + service_times_i + euclidean_dists # a'
+    arrival_times_j_high = end_times_i + service_times_i + euclidean_dists # b'
 
     # definite integral
     def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):
@@ -774,8 +802,7 @@ def _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3):
         k3=k3, d=end_times_j
     )
 
-    node = 1 # (i, j) = (1, 3)
-    print(euclidean_dists[node])
-    print(k1_result[node])
-    print(k2_result[node])
-    print(k3_result[node])
+    temporal_dists = k1 * A - (k1_result + k2_result + k3_result) / (arrival_times_j_high - arrival_times_j_low)
+
+    return temporal_dists
+
