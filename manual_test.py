@@ -3,6 +3,7 @@
 import os
 from collections import defaultdict
 import itertools
+from scipy.integrate import quad
 
 import cvrplib
 import numpy as np
@@ -322,9 +323,6 @@ def test_get_constituents(to_excel=False):
 
 def dist_matrix_to_excel():
     dir_name = SOLOMON
-    'C101'
-    'R202' # -3.6%
-    'R209' # -3.77%, # biggest % gain by tw_norm
     instance_name = 'C101'
     instance_size = 100
     dist_matrix_func = DM.v2_6_vectorized
@@ -687,10 +685,74 @@ def print_solution(solution, inst):
     print(f'routes: {routes}')
 
 
+def test_antiderivative_vs_quad():
+
+    def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):
+        return antiderivative(upper_limit, **kwargs) - antiderivative(lower_limit, **kwargs)
+
+    # (i, j) = (1, 2)
+    a = 1004
+    b = 1059
+    k1 = 1
+    k2 = 1.5
+    k3 = 2
+    start_times_j = 65
+    end_times_j = 146
+
+    def k1_integrand(x, k1, d):
+        return -k1 * x + k1 * d
+
+    k1_quad_result = quad(k1_integrand, a, b, args=(k1, end_times_j))
+    print(k1_quad_result)
+
+    def k1_antiderivative(x, k1, d):
+        # antiderivative of k1_integrand
+        return -k1 * x ** 2 / 2 + k1 * d * x
+
+    k1_result = def_integral(k1_antiderivative, a, b, k1=k1, d=end_times_j)
+    print(k1_result)
+
+
+    def k2_integrand(x, k1, k2, c, d):
+        return k2 * x + k1 * d - (k1 + k2) * c
+
+    k2_quad_result = quad(k2_integrand, a, b, args=(k1, k2, start_times_j, end_times_j))
+    print(k2_quad_result)
+
+    def k2_antiderivative(x, k1, k2, c, d):
+        return k2 * x ** 2 / 2 + k1 * d * x - (k1 + k2) * c * x
+
+    k2_result = def_integral(k2_antiderivative, a, b, k1=k1, k2=k2, c=start_times_j, d=end_times_j)
+    print(k2_result)
+
+
+    def k3_integrand(x, k3, d):
+        return -k3 * x + k3 * d
+
+    k3_quad_result = quad(k3_integrand, a, b, args=(k3, end_times_j))
+    print(k3_quad_result)
+
+    def k3_antiderivative(x, k3, d):
+        return -k3 * x ** 2 / 2 + k3 * d * x
+
+    k3_result = def_integral(k3_antiderivative, a, b, k3=k3, d=end_times_j)
+    print(k3_result)
+
+
+def test_dist_matrix_qi_2012():
+    dir_name = SOLOMON
+    instance_name = 'C101'
+    dist_matrix_func = DM.qi_2012_vectorized
+    _, converted_inst = read_instance(dir_name, instance_name)
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
+    feature_vectors = helpers.build_feature_vectors(converted_inst)
+    dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
+
+
 if __name__ == '__main__':
     # test_normalize_matrix()
     # test_read_json()
-    test_read_json_gen()
+    # test_read_json_gen()
     # test_get_clusters()
     # summary_fv(to_excel=False, summary_to_excel=False)
     # test_pairwise_distance()
@@ -703,3 +765,5 @@ if __name__ == '__main__':
     # plot_dist_matrix()
     # plot_clusters()
     # analyze_overlap_gap_effect()
+    test_antiderivative_vs_quad()
+    # test_dist_matrix_qi_2012()

@@ -68,6 +68,19 @@ def euclidean_vectorized(feature_vectors, decomposer):
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_euclidean_dist)
 
 
+def qi_2012_vectorized(feature_vectors, decomposer):
+    '''Based on:
+    Qi, M., Lin, W. H., Li, N., & Miao, L. (2012). A spatiotemporal
+    partitioning approach for large-scale vehicle routing problems
+    with time windows. Transportation Research Part E: Logistics
+    and Transportation Review, 48(1), 248-257.
+    '''
+    k1 = 1
+    k2 = 1.5
+    k3 = 2
+    return _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3)
+
+
 ''' DEPRECATED: use vectorized versions instead'''
 
 def v1(feature_vectors, decomposer):
@@ -671,3 +684,98 @@ def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_di
 
     return dist_matrix
 
+
+@lru_cache(maxsize=1)
+@helpers.log_run_time
+def _dist_matrix_qi_2012(feature_vectors, decomposer, k1, k2, k3):
+    fv = feature_vectors.data
+
+    n = len(fv)
+
+    # upper triangle indices of an n x n symmetric matrix
+    # skip the main diagonal (k=1) bc dist to self is zero
+    i, j = np.triu_indices(n, k=1)
+
+    # all unique pairwise nodes
+    nodes_i = fv[i]
+    nodes_j = fv[j]
+
+    x_coords_i = nodes_i[:, 0]
+    y_coords_i = nodes_i[:, 1]
+    start_times_i = nodes_i[:, 2] # a
+    end_times_i = nodes_i[:, 3] # b
+    # TODO: get service time from instance
+    # for now hard coded service time
+    # for R and RC instances, service time = 10
+    # for C instances, service time = 90
+    service_time_i = 90
+
+    x_coords_j = nodes_j[:, 0]
+    y_coords_j = nodes_j[:, 1]
+    start_times_j = nodes_j[:, 2] # c
+    end_times_j = nodes_j[:, 3] # d
+
+    tw_widths_i = end_times_i - start_times_i
+    tw_widths_j = end_times_j - start_times_j
+
+    max_tw_widths = np.maximum(tw_widths_i, tw_widths_j)
+    A = max(max_tw_widths) # maximum time window width among all customers
+    euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2) # t_ij
+
+    arrival_times_j_low = start_times_i + service_time_i + euclidean_dists # a'
+    arrival_times_j_high = end_times_i + service_time_i + euclidean_dists # b'
+
+    # definite integral
+    def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):
+        return antiderivative(upper_limit, **kwargs) - antiderivative(lower_limit, **kwargs)
+
+    # x=t' < c
+    def k2_integrand(x, k1, k2, c, d):
+        return k2 * x + k1 * d - (k1 + k2) * c
+
+    def k2_antiderivative(x, k1, k2, c, d):
+        # antiderivative of k2_integrand
+        return k2 * x ** 2 / 2 + k1 * d * x - (k1 + k2) * c * x
+
+    k2_result = def_integral(
+        k2_antiderivative,
+        np.minimum(arrival_times_j_low, start_times_j),
+        np.minimum(arrival_times_j_high, start_times_j),
+        k1=k1, k2=k2, c=start_times_j, d=end_times_j
+    )
+
+    # x=t' in [c, d]
+    def k1_integrand(x, k1, d):
+        return -k1 * x + k1 * d
+
+    def k1_antiderivative(x, k1, d):
+        # antiderivative of k1_integrand
+        return -k1 * x ** 2 / 2 + k1 * d * x
+
+    k1_result = def_integral(
+        k1_antiderivative,
+        np.minimum(np.maximum(arrival_times_j_low, start_times_j), end_times_j),
+        np.maximum(np.minimum(arrival_times_j_high, end_times_j), start_times_j),
+        k1=k1, d=end_times_j
+    )
+
+    # x=t' > d
+    def k3_integrand(x, k3, d):
+        return -k3 * x + k3 * d
+
+    def k3_antiderivative(x, k3, d):
+        # antiderivative of k3_integrand
+        return -k3 * x ** 2 / 2 + k3 * d * x
+
+    k3_result = def_integral(
+        k3_antiderivative,
+        np.maximum(arrival_times_j_low, end_times_j),
+        np.maximum(arrival_times_j_high, end_times_j),
+        k3=k3, d=end_times_j
+    )
+
+    node = 1 # (i, j) = (1, 3)
+    print(euclidean_dists[node])
+    print(k1_result[node])
+    print(k2_result[node])
+    print(k3_result[node])
