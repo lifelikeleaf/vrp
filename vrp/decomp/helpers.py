@@ -230,8 +230,9 @@ class FV():
     Wrap a feature_vectors NDArray inside a user defined class
     to make it hashable for dist_matrix.
     """
-    def __init__(self, data: np.ndarray) -> None:
-        self.data = data
+    def __init__(self, data: np.ndarray, depot_data=None) -> None:
+        self.data = data # customer data
+        self.depot_data = depot_data
 
 
 @lru_cache(maxsize=1)
@@ -261,7 +262,6 @@ def build_feature_vectors(inst, standardize=False):
     if standardize:
         fv_data = standardize_feature_vectors(fv_data)
 
-    # By CVRPLIB convention, index 0 is always depot;
-    # depot should not be clustered
-    return FV(fv_data[1:])
+    # By CVRPLIB convention, index 0 is always depot
+    return FV(fv_data[1:], fv_data[0])
 

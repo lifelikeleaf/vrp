@@ -505,7 +505,7 @@ def _get_constituents_matrix(fv, decomposer):
     # must do this before normalization
     # and do not normalze bc they're relative ratios
     relative_tw_width_matrix = max_tw_width_matrix / planning_horizon
-    # NOTE: overlap could be > max_tw_width after normalization
+    # overlap could be > max_tw_width after normalization
     # even though that's impossible before
     relative_overlap_matrix = np.divide(
         overlap_matrix,
@@ -704,6 +704,7 @@ def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_di
 @helpers.log_run_time
 def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2):
     fv = feature_vectors.data
+    fv_depot_data = feature_vectors.depot_data
 
     n = len(fv)
 
@@ -721,9 +722,34 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     y_coords_j = nodes_j[:, 1]
     euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2) # t_ij
 
-    temporal_dists_ij = qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists)
-    temporal_dists_ji = qi_2012_temporal_dists_directional(nodes_j, nodes_i, k1, k2, k3, euclidean_dists)
-    temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
+    # euclidean_matrix = np.zeros((n, n))
+    # euclidean_matrix[i, j] = euclidean_dists
+    # euclidean_matrix += euclidean_matrix.T
+    # print('euclidean matrix:')
+    # print(euclidean_matrix.round(2))
+    # print()
+
+    temporal_dists_ij = qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data)
+    temporal_dists_ji = qi_2012_temporal_dists_directional(nodes_j, nodes_i, k1, k2, k3, euclidean_dists, fv_depot_data)
+    '''
+    NOTE: in section "4. Measuring temporal and spatiotemporal distance,"
+    it is presented that the algorithm is to choose the `max` of the two
+    directional temporal distances as the undirected pairwise temporal distance
+    (Eq. 6).
+    However, in section "6.1. An example for a small scale network," the
+    numerical results are actually calculated using the `min` of the two
+    directional temporal distances as the undirected pairwise temporal distance
+    (Table 2).
+    '''
+    # temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
+    temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
+
+    # temporal_matrix = np.zeros((n, n))
+    # temporal_matrix[i, j] = temporal_dists
+    # temporal_matrix += temporal_matrix.T
+    # print('temporal matrix:')
+    # print(temporal_matrix.round(2))
+    # print()
 
     spatiotemporal_dists = alpha1 * helpers.normalize_matrix(euclidean_dists) + alpha2 * helpers.normalize_matrix(temporal_dists)
 
@@ -736,7 +762,7 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     return dist_matrix
 
 
-def qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists):
+def qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data):
     start_times_i = nodes_i[:, 2] # a
     end_times_i = nodes_i[:, 3] # b
     service_times_i = nodes_i[:, 4] # s_i
@@ -746,12 +772,16 @@ def qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_d
 
     tw_widths_i = end_times_i - start_times_i
     tw_widths_j = end_times_j - start_times_j
-
     max_tw_widths = np.maximum(tw_widths_i, tw_widths_j)
-    A = max(max_tw_widths) # maximum time window width among all customers
 
-    arrival_times_j_low = start_times_i + service_times_i + euclidean_dists # a'
-    arrival_times_j_high = end_times_i + service_times_i + euclidean_dists # b'
+    depot_start_time = fv_depot_data[2]
+    depot_end_time = fv_depot_data[3]
+    depot_tw_width = depot_end_time - depot_start_time
+    # maximum time window width among all customers and the depot
+    A = max(max(max_tw_widths), depot_tw_width)
+
+    arrival_times_j_low = start_times_i + service_times_i + euclidean_dists # a' (a prime)
+    arrival_times_j_high = end_times_i + service_times_i + euclidean_dists # b' (b prime)
 
     # definite integral
     def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):

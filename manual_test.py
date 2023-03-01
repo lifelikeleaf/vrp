@@ -693,54 +693,68 @@ def test_antiderivative_vs_quad():
 
     # For instance C101
     # (i, j) = (1, 2)
-    # a = 1004 # a' = lower_limit of integral
-    # b = 1059 # b' = upper_limit of integral
-    # start_times_j = 825 # c
-    # end_times_j = 870 # d
+    a_prime = 1004 # a' = lower_limit of integral
+    b_prime = 1059 # b' = upper_limit of integral
+    start_time_j = 825 # c
+    end_time_j = 870 # d
 
     # (i, j) = (2, 1)
-    a = 917 # a' = lower_limit of integral
-    b = 962 # b' = upper_limit of integral
-    start_times_j = 912 # c
-    end_times_j = 967 # d
+    # a_prime = 917 # a' = lower_limit of integral
+    # b_prime = 962 # b' = upper_limit of integral
+    # start_time_j = 912 # c
+    # end_time_j = 967 # d
 
+    # For mock data from Qi 2012
+    # (i, j) = (1, 2)
+    # a_prime = 90 # a' = lower_limit of integral
+    # b_prime = 150 # b' = upper_limit of integral
+    # start_time_j = 420 # c
+    # end_time_j = 480 # d
+
+    # (i, j) = (2, 1)
+    # a_prime = 450 # a' = lower_limit of integral
+    # b_prime = 510 # b' = upper_limit of integral
+    # start_time_j = 60 # c
+    # end_time_j = 120 # d
+
+    # x=t' in [c, d]
     def k1_integrand(x, k1, d):
         return -k1 * x + k1 * d
 
-    k1_quad_result = quad(k1_integrand, a, b, args=(k1, end_times_j))
+    k1_quad_result = quad(k1_integrand, a_prime, b_prime, args=(k1, end_time_j))
     print(k1_quad_result)
 
     def k1_antiderivative(x, k1, d):
         # antiderivative of k1_integrand
         return -k1 * x ** 2 / 2 + k1 * d * x
 
-    k1_result = def_integral(k1_antiderivative, a, b, k1=k1, d=end_times_j)
+    k1_result = def_integral(k1_antiderivative, a_prime, b_prime, k1=k1, d=end_time_j)
     print(k1_result)
 
-
+    # x=t' < c
     def k2_integrand(x, k1, k2, c, d):
         return k2 * x + k1 * d - (k1 + k2) * c
 
-    k2_quad_result = quad(k2_integrand, a, b, args=(k1, k2, start_times_j, end_times_j))
+    k2_quad_result = quad(k2_integrand, a_prime, b_prime, args=(k1, k2, start_time_j, end_time_j))
     print(k2_quad_result)
 
     def k2_antiderivative(x, k1, k2, c, d):
         return k2 * x ** 2 / 2 + k1 * d * x - (k1 + k2) * c * x
 
-    k2_result = def_integral(k2_antiderivative, a, b, k1=k1, k2=k2, c=start_times_j, d=end_times_j)
+    k2_result = def_integral(k2_antiderivative, a_prime, b_prime, k1=k1, k2=k2, c=start_time_j, d=end_time_j)
     print(k2_result)
 
-
+    # x=t' > d
     def k3_integrand(x, k3, d):
         return -k3 * x + k3 * d
 
-    k3_quad_result = quad(k3_integrand, a, b, args=(k3, end_times_j))
+    k3_quad_result = quad(k3_integrand, a_prime, b_prime, args=(k3, end_time_j))
     print(k3_quad_result)
 
     def k3_antiderivative(x, k3, d):
         return -k3 * x ** 2 / 2 + k3 * d * x
 
-    k3_result = def_integral(k3_antiderivative, a, b, k3=k3, d=end_times_j)
+    k3_result = def_integral(k3_antiderivative, a_prime, b_prime, k3=k3, d=end_time_j)
     print(k3_result)
 
 
@@ -754,9 +768,9 @@ def test_dist_matrix_qi_2012(use_mock_data=False):
     if not use_mock_data:
         feature_vectors = helpers.build_feature_vectors(converted_inst)
         dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-        print(dist_matrix[3, 3])
-        print(dist_matrix[0, 1])
-        print(dist_matrix[1, 0])
+        print(dist_matrix[3, 3].round(2))
+        print(dist_matrix[0, 1].round(2))
+        print(dist_matrix[1, 0].round(2))
     else:
         # mock data from Qi 2012
         fv_data = [
@@ -769,10 +783,10 @@ def test_dist_matrix_qi_2012(use_mock_data=False):
             [90, 90, 420, 480, 10],
         ]
         fv_data = np.asarray(fv_data)
-        feature_vectors = helpers.FV(fv_data[1:])
+        feature_vectors = helpers.FV(fv_data[1:], fv_data[0])
 
         dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-        print(dist_matrix)
+        print(dist_matrix.round(2))
 
 
 if __name__ == '__main__':
