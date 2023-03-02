@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import openpyxl as xl
 from openpyxl.styles import PatternFill
-from openpyxl.formatting.rule import CellIsRule, FormulaRule
+from openpyxl.styles.differential import DifferentialStyle
+from openpyxl.formatting.rule import Rule, CellIsRule, FormulaRule
 from openpyxl.utils.cell import get_column_letter
 import vrp.decomp.helpers as helpers
 from vrp.decomp.constants import *
@@ -95,15 +96,15 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
 
         '''MODIFY: sheet names and df column names'''
 
-        # versions = ['v1', 'v2_1', 'v2_2', 'v2_3', 'v2_4', 'v2_5', 'v2_6']
-        # versions = ['v2_7', 'v2_8', 'v2_9', 'v2_10']
-        versions = ['v2_5', 'v2_8', 'v2_9']
+        versions = ['v2_2', 'v2_3', 'v2_5']
         for v in versions:
-            dfs[f'ol_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
-            dfs[f'gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
+            dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+            dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
+            # dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
 
             ''' `Both` almost never worked well'''
-            # dfs[f'both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            # dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            # dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
 
         '''END MODIFY'''
 
@@ -176,13 +177,20 @@ def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, dump_best=F
 
 
 def conditional_formatting(dir_name, sub_dir, file_name):
+    '''
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    c = ws['A4'] # a cell
+    c.row # 4
+    c.column # 1 == c.col_idx
+    c.column_letter # 'A'
+    '''
     file_to_load = os.path.join(dir_name, sub_dir, f'{file_name}.xlsx')
     wb = xl.load_workbook(file_to_load)
 
     for sheet in wb:
-        # conditional color formatting:
-        # - highlight cell value < 0 green
-        # - highlight cell value b/t 0 and 0.01 yellow (i.e. b/t 0% and 1%)
+        # conditional color formatting
         green_fill = PatternFill(bgColor='00FF00', fill_type='solid')
         yellow_fill = PatternFill(bgColor='FFFF00', fill_type='solid')
         less_than_rule = CellIsRule(operator='lessThan', formula=['0'], fill=green_fill)
@@ -200,43 +208,81 @@ def conditional_formatting(dir_name, sub_dir, file_name):
         sheet.conditional_formatting.add(range_string, less_than_rule)
         # sheet.conditional_formatting.add(range_string, between_rule)
 
+
+        # make certain marked columns proper empty columns
         headers = sheet[1] # row 1
         for header_cell in headers:
-            if header_cell.value is not None and '%' in header_cell.value:
-                percent_col = sheet[header_cell.column_letter]
-                for i in range(1, len(percent_col)): # skip the header row
-                    cell = percent_col[i]
-                    cell.number_format = '0.00%'
-
             if header_cell.value is None or header_cell.value.strip() == '' or 'N/A' in header_cell.value:
                 col = sheet[header_cell.column_letter]
                 for i in range(len(col)):
                     cell = col[i]
                     cell.value = None
 
+
         # add additional rows for counting comparison results per column
-        # - how many have diffs < 0? (i.e. performed strictly better)
-        # - how many have diffs b/t 0 and 0.01? (i.e. performed almost the same)
-        # - how many have diffs <= 0.01? (i.e. performed almost the same or better)
         cur_max_row = sheet.max_row
+        added_row1 = cur_max_row + 2
+        added_row2 = cur_max_row + 3
+        added_row3 = cur_max_row + 4
         cols_gen = sheet.columns
-        # next(cols_gen) # skip the first column which contains instance names
         for col in cols_gen:
             cell = col[0]
             if cell.value is not None:
                 col_letter = cell.column_letter
-                cell_loc_1 = f'{col_letter}{cur_max_row + 2}'
-                cell_loc_2 = f'{col_letter}{cur_max_row + 3}'
-                cell_loc_3 = f'{col_letter}{cur_max_row + 4}'
+                cell_loc_1 = f'{col_letter}{added_row1}'
+                cell_loc_2 = f'{col_letter}{added_row2}'
+                cell_loc_3 = f'{col_letter}{added_row3}'
                 formula_range = f'{col_letter}{start_row}:{col_letter}{cur_max_row}'
                 if col_letter == 'A': # first column
                     sheet[cell_loc_1] = 'x<0'
                     # sheet[cell_loc_2] = '0<=x<=0.01'
                     # sheet[cell_loc_3] = 'x<=0.01'
+                    sheet[cell_loc_2] = 'sum <0'
+                    sheet[cell_loc_3] = 'sum all'
                 else:
                     sheet[cell_loc_1] = f'=COUNTIF({formula_range}, "<0")'
                     # sheet[cell_loc_2] = f'=COUNTIFS({formula_range}, ">=0", {formula_range}, "<=0.01")'
                     # sheet[cell_loc_3] = f'=COUNTIF({formula_range}, "<=0.01")'
+                    sheet[cell_loc_2] = f'=SUMIF({formula_range}, "<0")'
+                    sheet[cell_loc_3] = f'=SUM({formula_range})'
+
+
+        # format % columns
+        headers = sheet[1] # row 1; 1-based indexing of excel
+        for header_cell in headers:
+            if header_cell.value is not None and '%' in header_cell.value:
+                percent_col = sheet[header_cell.column_letter]
+                for i in range(1, len(percent_col)): # skip the header row; 0-based indexing of column tuple
+                    if i != added_row1 - 1: # minus 1 due to 0-based indexing of column tuple and 1-based indexing of excel
+                        cell = percent_col[i]
+                        cell.number_format = '0.00%'
+
+
+        # conditional format the above added rows one block at a time
+        pink_fill = PatternFill(bgColor='FFCCCC', fill_type='solid')
+        orange_fill = PatternFill(bgColor='FFCC33', fill_type='solid')
+        top1_rule = Rule(type='top10', rank=1, dxf=DifferentialStyle(fill=pink_fill))
+        bottom1_rule = Rule(type='top10', bottom=True, rank=1, dxf=DifferentialStyle(fill=orange_fill))
+
+        cols_gen = sheet.columns
+        start_col = 'B' # skip column A, which contains instance names
+        for col in cols_gen:
+            cell = col[0]
+            if cell.value is None:
+                # the column before the empty column is the end column for this block
+                end_col = get_column_letter(cell.column - 1)
+                sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top1_rule)
+                sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom1_rule)
+                sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom1_rule)
+                # new start column is the column after the empty column
+                start_col = get_column_letter(cell.column + 1)
+
+        # handle the final block after cols_gen has been exhausted
+        end_col = get_column_letter(cell.column)
+        sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top1_rule)
+        sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom1_rule)
+        sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom1_rule)
+
 
     dir_path = os.path.join(dir_name, sub_dir)
     helpers.make_dirs(dir_path)
@@ -245,7 +291,7 @@ def conditional_formatting(dir_name, sub_dir, file_name):
 
 
 if __name__ == '__main__':
-    '''MODIFY: experiment names and dir name; must match params in experiments.py'''
+    '''MODIFY: experiment names and dir name; must match file_name in experiments.py'''
 
     exp_names = [
         'k_medoids_C1',
@@ -262,11 +308,11 @@ if __name__ == '__main__':
         # 'k_medoids_focus_RC2',
     ]
 
-    dir_name = 'E13'
+    dir_name = 'E15_ortools_no_wait_time'
     print_num_subprobs = False # dump_best must be True for this to be meaningful
     dump_best = True
-    dump_avg = False
-    dump_all = False
+    dump_avg = True
+    dump_all = True
 
     '''END MODIFY'''
 
@@ -276,17 +322,6 @@ if __name__ == '__main__':
     if print_num_subprobs:
         print(num_subprobs_best_found.tolist())
         for i in range(num_subprobs_best_found.min(), num_subprobs_best_found.max() + 1, 1):
-            '''
-            num_clusters=2: 70
-            num_clusters=3: 100
-            num_clusters=4: 161
-            num_clusters=5: 45
-            num_clusters=6: 23
-            num_clusters=7: 9
-            num_clusters=8: 7
-            num_clusters=9: 4
-            num_clusters=10: 1
-            '''
             print(f'num_clusters={i}: {len(num_subprobs_best_found[num_subprobs_best_found == i])}')
         fig, ax = plt.subplots()
         ax.hist(num_subprobs_best_found, bins=9, linewidth=0.5, edgecolor="white", align='mid', rwidth=0.8)
