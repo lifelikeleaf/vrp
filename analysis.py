@@ -100,11 +100,9 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
         for v in versions:
             dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
             dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
-            # dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
-
-            ''' `Both` almost never worked well'''
-            # dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
-            # dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
+            dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
+            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
 
         '''END MODIFY'''
 
@@ -194,19 +192,22 @@ def conditional_formatting(dir_name, sub_dir, file_name):
         green_fill = PatternFill(bgColor='00FF00', fill_type='solid')
         yellow_fill = PatternFill(bgColor='FFFF00', fill_type='solid')
         less_than_rule = CellIsRule(operator='lessThan', formula=['0'], fill=green_fill)
-        # between_rule = CellIsRule(operator='between', formula=['0', '0.01'], fill=yellow_fill)
+        # between_rule = CellIsRule(operator='between', formula=['-0.01', '0'], fill=yellow_fill) # use FormulaRule below
         '''Do not apply formula to blank cells, i.e. cell.value == None
         The formula uses a relative reference (A2), which will be expanded
         to the range over which the format is applied; this is a peculiar feature of Excel'''
-        # between_rule = FormulaRule(formula=['AND( NOT( ISBLANK(A2) ), A2 >= 0, A2 <= 0.01 )'], fill=yellow_fill)
+        # apply if cell is not blank and cell value is in (-1%, 0]
+        between_rule = FormulaRule(formula=['AND( NOT( ISBLANK(A2) ), A2 > -0.01, A2 <= 0 )'], fill=yellow_fill)
         start_row = sheet.min_row + 1 # skip the headers
         start_col = get_column_letter(sheet.min_column)
         end_row = sheet.max_row
         end_col = get_column_letter(sheet.max_column)
         # e.g. range_string = 'B2:F4'
         range_string = f'{start_col}{start_row}:{end_col}{end_row}'
+        # order matters in conditional formatting: the first rule takes precedence
+        # and is NOT overridden by later rules, so the more granular rule should be added first
+        sheet.conditional_formatting.add(range_string, between_rule)
         sheet.conditional_formatting.add(range_string, less_than_rule)
-        # sheet.conditional_formatting.add(range_string, between_rule)
 
 
         # make certain marked columns proper empty columns
@@ -308,8 +309,8 @@ if __name__ == '__main__':
         # 'k_medoids_focus_RC2',
     ]
 
-    dir_name = 'E15_ortools_no_wait_time'
-    print_num_subprobs = False # dump_best must be True for this to be meaningful
+    dir_name = 'E16_ortools'
+    print_num_subprobs = True # dump_best must be True for this to be meaningful
     dump_best = True
     dump_avg = True
     dump_all = True
