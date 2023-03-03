@@ -195,73 +195,41 @@ if __name__ == "__main__":
     def k_medoids():
         # for each instance, run a set of experiments
         # each experiment is a diff way to decompose the instance
-        # the best found solution is over a range of num_clusters and repeated n times
         experiments = []
 
         '''Euclidean'''
         experiments.append(KMedoidsDecomposer(DM.euclidean_vectorized, name='euclidean'))
 
-        # '''temporal dist based'''
-        # dist_matrix_func = DM.v1_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+        '''Qi et al 2012'''
+        experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
 
         '''temporal weight based'''
-        # '''absolute overlap'''
-        # '''v2.1 50/100%'''
-        # dist_matrix_func = DM.v2_1_vectorized
+        '''v2.2 100/100%'''
+        # dist_matrix_func = DM.v2_2_vectorized
         # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-        '''relative overlap'''
-        '''v2.2 100/100%'''
-        dist_matrix_func = DM.v2_2_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
-
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
 
         '''v2.3 50/50%'''
-        dist_matrix_func = DM.v2_3_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
-
-        # '''v2.4 30/30%'''
-        # dist_matrix_func = DM.v2_4_vectorized
+        # dist_matrix_func = DM.v2_3_vectorized
         # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
 
         '''v2.5 15/15%'''
-        dist_matrix_func = DM.v2_5_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
-
-        # '''v2.7 40/40%'''
-        # dist_matrix_func = DM.v2_7_vectorized
+        # dist_matrix_func = DM.v2_5_vectorized
         # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
 
         # '''v2.8 20/20%'''
         # dist_matrix_func = DM.v2_8_vectorized
@@ -286,10 +254,10 @@ if __name__ == "__main__":
     experiments_only = False # True if only run experiments, don't run Basis
 
     allow_sleep = True
-    num_clusters_range = (5, 8) # inclusive
+    num_clusters_range = (10, 10) # inclusive
     repeat_n_times = 1
     time_limit = 10 # use >=20 for HGS, <20 (5, 10, 15) even decomp can't find feasible solution for R1_10_1
-    output_dir_name = 'E16_ortools'
+    output_dir_name = 'E17_ortools_Qi'
     experiments = k_medoids
     benchmark_dir_name = HG
     input = {
@@ -317,9 +285,6 @@ if __name__ == "__main__":
         'RC1': RC1_10,
         'RC2': RC2_10,
     }
-
-    # file_name = experiments.__name__ + '_test'
-    # # Example instance returning no feasible solution: 'R1_6_1'
 
     # sample_size = 10
     # instance_sizes = [100, 200, 400, 600, 800, 1000]

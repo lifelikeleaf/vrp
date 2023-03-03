@@ -96,13 +96,14 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
 
         '''MODIFY: sheet names and df column names'''
 
-        versions = ['v2_2', 'v2_3', 'v2_5']
+        # versions = ['v2_2', 'v2_3', 'v2_5']
+        versions = ['v2_5', 'v2_8', 'v2_9']
         for v in versions:
             dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
             dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
-            dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
-            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
-            dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
+            # dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
+            # dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            # dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
 
         '''END MODIFY'''
 
@@ -262,8 +263,9 @@ def conditional_formatting(dir_name, sub_dir, file_name):
         # conditional format the above added rows one block at a time
         pink_fill = PatternFill(bgColor='FFCCCC', fill_type='solid')
         orange_fill = PatternFill(bgColor='FFCC33', fill_type='solid')
-        top1_rule = Rule(type='top10', rank=1, dxf=DifferentialStyle(fill=pink_fill))
-        bottom1_rule = Rule(type='top10', bottom=True, rank=1, dxf=DifferentialStyle(fill=orange_fill))
+        rank = 2
+        top_rule = Rule(type='top10', rank=rank, dxf=DifferentialStyle(fill=pink_fill))
+        bottom_rule = Rule(type='top10', bottom=True, rank=rank, dxf=DifferentialStyle(fill=orange_fill))
 
         cols_gen = sheet.columns
         start_col = 'B' # skip column A, which contains instance names
@@ -272,17 +274,17 @@ def conditional_formatting(dir_name, sub_dir, file_name):
             if cell.value is None:
                 # the column before the empty column is the end column for this block
                 end_col = get_column_letter(cell.column - 1)
-                sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top1_rule)
-                sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom1_rule)
-                sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom1_rule)
+                sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top_rule)
+                sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom_rule)
+                sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom_rule)
                 # new start column is the column after the empty column
                 start_col = get_column_letter(cell.column + 1)
 
         # handle the final block after cols_gen has been exhausted
         end_col = get_column_letter(cell.column)
-        sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top1_rule)
-        sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom1_rule)
-        sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom1_rule)
+        sheet.conditional_formatting.add(f'{start_col}{added_row1}:{end_col}{added_row1}', top_rule)
+        sheet.conditional_formatting.add(f'{start_col}{added_row2}:{end_col}{added_row2}', bottom_rule)
+        sheet.conditional_formatting.add(f'{start_col}{added_row3}:{end_col}{added_row3}', bottom_rule)
 
 
     dir_path = os.path.join(dir_name, sub_dir)
@@ -309,8 +311,8 @@ if __name__ == '__main__':
         # 'k_medoids_focus_RC2',
     ]
 
-    dir_name = 'E16_ortools'
-    print_num_subprobs = True # dump_best must be True for this to be meaningful
+    dir_name = 'E13'
+    print_num_subprobs = False # dump_best must be True for this to be meaningful
     dump_best = True
     dump_avg = True
     dump_all = True
