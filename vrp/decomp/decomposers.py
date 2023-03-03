@@ -86,7 +86,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         standardize=False,
         use_overlap=False,
         use_gap=False,
-        normalize=True,
+        normalize=False,
         minimize_wait_time=False,
     ) -> None:
         """
@@ -109,7 +109,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
             normalize: bool
                 True if min-max scaling should be used for distance matrix
                 calculation, else False.
-                Default is True.
+                Default is False.
 
             minimize_wait_time: bool
                 Whether to minimize wait time in objective function.

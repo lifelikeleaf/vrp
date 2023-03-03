@@ -729,8 +729,8 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     # print(euclidean_matrix.round(2))
     # print()
 
-    temporal_dists_ij = qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data)
-    temporal_dists_ji = qi_2012_temporal_dists_directional(nodes_j, nodes_i, k1, k2, k3, euclidean_dists, fv_depot_data)
+    temporal_dists_ij = _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data)
+    temporal_dists_ji = _qi_2012_temporal_dists_directional(nodes_j, nodes_i, k1, k2, k3, euclidean_dists, fv_depot_data)
     '''
     NOTE: in section "4. Measuring temporal and spatiotemporal distance,"
     it is presented that the algorithm is to choose the `max` of the two
@@ -762,7 +762,7 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     return dist_matrix
 
 
-def qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data):
+def _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_dists, fv_depot_data):
     start_times_i = nodes_i[:, 2] # a
     end_times_i = nodes_i[:, 3] # b
     service_times_i = nodes_i[:, 4] # s_i
