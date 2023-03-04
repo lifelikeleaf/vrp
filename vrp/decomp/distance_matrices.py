@@ -340,7 +340,7 @@ class _PairwiseDistance:
             # bc wait time isn't minimized, total time (including wait time)
             # is minimized, wait time is penalized.
             if self.decomposer.minimize_wait_time:
-                # but if wait time IS included in objective function,
+                # theoretically, if wait time IS included in objective function,
                 # then large gap b/t time windows is a penalty,
                 # so it should increase spatial_temporal_dist
                 # temporal_dist = gap / euclidean_dist
@@ -740,9 +740,14 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     numerical results are actually calculated using the `min` of the two
     directional temporal distances as the undirected pairwise temporal distance
     (Table 2).
+    Use `min` for reconciliation with Table 2 and verification of correctness
+    of my implementation.
+    Use `max` for experiments and numerical comparison as it performs much
+    better than `min`, indicating that Eq. 6 is the correct version of the
+    algorithm intended by the authors of Qi et al 2012.
     '''
-    # temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
-    temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
+    temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
+    # temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
 
     # temporal_matrix = np.zeros((n, n))
     # temporal_matrix[i, j] = temporal_dists

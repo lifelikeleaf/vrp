@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
 
+from vrp.third_party.solver.hgs import tools
 import vrp.decomp.helpers as helpers
 from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 from vrp.decomp.decomposers import (
@@ -631,7 +632,10 @@ def test_solver():
     # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
     solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
     solution = solver.solve(converted_inst)
-    print_solution(solution, inst)
+    if solution.metrics[METRIC_COST] == float('inf'):
+        print('No feasible solution found.')
+    else:
+        print_solution(solution, inst)
 
 
 def test_framework():
@@ -650,7 +654,10 @@ def test_framework():
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
-    print_solution(solution, inst)
+    if solution.metrics[METRIC_COST] == float('inf'):
+        print('No feasible solution found.')
+    else:
+        print_solution(solution, inst)
 
 
 def print_solution(solution, inst):
@@ -789,6 +796,39 @@ def test_dist_matrix_qi_2012(use_mock_data=False):
         print(dist_matrix.round(2))
 
 
+def validate_routes():
+    dir_name = HG
+    instance_name = 'RC1_10_1'
+    num_clusters = 6
+    inst, converted_inst = read_instance(dir_name, instance_name)
+    dist_matrix_func = DM.v2_2_vectorized
+    time_limit = 10
+
+    print(f'instance: {instance_name}')
+    # solver = HgsSolverWrapper(time_limit=time_limit)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+
+    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters)
+    runner = DecompositionRunner(converted_inst, decomposer, solver)
+    solution = runner.run(in_parallel=True, num_workers=num_clusters)
+
+    if solution.metrics[METRIC_COST] == float('inf'):
+        print('No feasible solution found.')
+    else:
+        print_solution(solution, inst)
+        instance = dict(
+            coords = np.array(inst.coordinates),
+            demands = np.array(inst.demands),
+            capacity = inst.capacity,
+            duration_matrix = np.array(inst.distances),
+            time_windows = np.array(list(zip(inst.earliest, inst.latest))),
+            service_times = np.array(inst.service_times),
+        )
+        driving_time = tools.validate_static_solution(instance, solution.routes)
+        print(f'driving time excluding waiting time: {driving_time}')
+
+
 if __name__ == '__main__':
     # test_normalize_matrix()
     # test_read_json()
@@ -806,4 +846,5 @@ if __name__ == '__main__':
     # plot_clusters()
     # analyze_overlap_gap_effect()
     # test_antiderivative_vs_quad()
-    test_dist_matrix_qi_2012(use_mock_data=True)
+    # test_dist_matrix_qi_2012(use_mock_data=True)
+    validate_routes()
