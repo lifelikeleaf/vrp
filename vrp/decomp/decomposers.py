@@ -87,7 +87,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         use_overlap=False,
         use_gap=False,
         normalize=False,
-        minimize_wait_time=False,
+        penalize_wait_time=False,
     ) -> None:
         """
         Parameters
@@ -111,8 +111,8 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
                 calculation, else False.
                 Default is False.
 
-            minimize_wait_time: bool
-                Whether to minimize wait time in objective function.
+            penalize_wait_time: bool
+                Whether to penalize wait time in objective function.
                 This flag should only be used if the underlying solver
                 considers wait time in its objective function.
                 Default is False.
@@ -123,7 +123,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         self.use_overlap = use_overlap
         self.use_gap = use_gap
         self.normalize = normalize
-        self.minimize_wait_time = minimize_wait_time
+        self.penalize_wait_time = penalize_wait_time
 
 
 class KMeansDecomposer(BaseDecomposer):
@@ -153,11 +153,11 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
         logger.info('Running k-medoids...')
         logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
         if self.use_overlap:
-            logger.info('considering overlap...')
+            logger.info('use overlap...')
         if self.use_gap:
-            logger.info('considering gap...')
-        if self.minimize_wait_time:
-            logger.info('minimizing wait time...')
+            logger.info('use gap...')
+        if self.penalize_wait_time:
+            logger.info('penalize wait time...')
 
         # for 'precomputed' must pass the fit() method a distance matrix
         # instead of a feature vector

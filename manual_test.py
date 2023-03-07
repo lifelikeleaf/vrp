@@ -629,8 +629,8 @@ def test_solver():
 
     print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=time_limit, init_sol=True)
-    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
-    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=False)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
     solution = solver.solve(converted_inst)
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
@@ -648,8 +648,8 @@ def test_framework():
 
     print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=time_limit)
-    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
-    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=False)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
 
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_gap=True)
     runner = DecompositionRunner(converted_inst, decomposer, solver)
@@ -806,8 +806,8 @@ def validate_routes():
 
     print(f'instance: {instance_name}')
     # solver = HgsSolverWrapper(time_limit=time_limit)
-    # solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=False)
-    solver = GortoolsSolverWrapper(time_limit=time_limit, wait_time_in_obj_func=True)
+    # solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=False)
+    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
 
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters)
     runner = DecompositionRunner(converted_inst, decomposer, solver)

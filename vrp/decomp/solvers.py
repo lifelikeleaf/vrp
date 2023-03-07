@@ -81,7 +81,7 @@ class HgsSolverWrapper(AbstractSolverWrapper):
             # without it, HGS can't find a feasible solution even in 60 sec for
             # some instances, such as R1_10_1, but it seems that HGS still
             # has difficulties improving this initial solution
-            initial_solution = GortoolsSolverWrapper(wait_time_in_obj_func=False).solve(inst).routes
+            initial_solution = GortoolsSolverWrapper(min_total=False).solve(inst).routes
             initial_solution = to_giant_tour_str(initial_solution)
 
         # Capture C-level stdout/stderr
@@ -132,16 +132,14 @@ class HgsSolverWrapper(AbstractSolverWrapper):
 
 
 class GortoolsSolverWrapper(AbstractSolverWrapper):
-    '''Wraps Google OR-Tools VRPTW solver. This is primarily for
-    experiments where wait time is included in the objective function because
+    '''Wraps Google OR-Tools VRPTW solver. This enables experiments
+    with wait time included in the objective function, whereas
     HGS solver doesn't include wait time in its objective function.
     '''
 
-    def __init__(self, time_limit=10, wait_time_in_obj_func=True) -> None:
+    def __init__(self, time_limit=10, min_total=True) -> None:
         self.time_limit = time_limit
-        # this flag should be kept True for actual experiments,
-        # it's used here mainly for testing purposes.
-        self.wait_time_in_obj_func = wait_time_in_obj_func
+        self.min_total = min_total
 
 
     def build_data_for_gortools(self, inst: VRPInstance):
@@ -297,7 +295,7 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
         )
         time_dimension = routing.GetDimensionOrDie(DIMENSION_TIME)
 
-        if self.wait_time_in_obj_func:
+        if self.min_total:
             logger.info('Considers total time (wait time included)')
             time_dimension.SetSpanCostCoefficientForAllVehicles(1)
         else:
@@ -320,7 +318,7 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
         # only considers driving time.
         # if OF already includes wait time, these secondary objectives are
         # not that important.
-        if not self.wait_time_in_obj_func:
+        if not self.min_total:
             for vehicle_id in range(routing.vehicles()):
                 # leave the depot as late as possible
                 routing.AddVariableMaximizedByFinalizer(

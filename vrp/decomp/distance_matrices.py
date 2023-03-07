@@ -143,7 +143,7 @@ def _vectorized_dist_v1(constituents, decomposer):
             where=(euclidean_dists != 0)
         ) * gaps * -1
 
-        if decomposer.minimize_wait_time:
+        if decomposer.penalize_wait_time:
             # temporal_dist = gap / euclidean_dist
             temporal_dists = np.absolute(temporal_dists)
 
@@ -187,7 +187,7 @@ def _vectorized_dist_v2_1(constituents, decomposer):
             where=((gaps + euclidean_dists) != 0)
         )
 
-        if decomposer.minimize_wait_time:
+        if decomposer.penalize_wait_time:
             spatial_temporal_dists *= (1 + temporal_weights)
         else:
             spatial_temporal_dists *= (1 - temporal_weights)
@@ -209,6 +209,9 @@ def _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=1, gap_lambda
         temporal_weights = relative_overlaps * (1 - relative_tw_widths) * overlap_lambda
         spatial_temporal_dists *= (1 + temporal_weights)
 
+    # this is safe bc overlap and gap are by definition mutually exclusive,
+    # i.e. a pair of nodes can either have a TW overlap or a TW gap,
+    # or neither, but not both.
     if decomposer.use_gap:
         # temporal_weight = gap / (gap + euclidean_dist) * lambda
         temporal_weights = np.divide(
@@ -218,7 +221,7 @@ def _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=1, gap_lambda
             where=((gaps + euclidean_dists) != 0)
         ) * gap_lambda
 
-        if decomposer.minimize_wait_time:
+        if decomposer.penalize_wait_time:
             spatial_temporal_dists *= (1 + temporal_weights)
         else:
             spatial_temporal_dists *= (1 - temporal_weights)
@@ -262,8 +265,8 @@ def _vectorized_dist_v2_9(constituents, decomposer):
 
 
 def _vectorized_dist_v2_10(constituents, decomposer):
-    '''limit weight up to 60%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.6, gap_lambda=0.6)
+    '''limit weight up to 5%'''
+    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.05, gap_lambda=0.05)
 
 
 def _vectorized_euclidean_dist(constituents, decomposer):
@@ -336,13 +339,11 @@ class _PairwiseDistance:
             # temporal_dist = -1 * gap / euclidean_dist
             temporal_dist = -1 * helpers.safe_divide(1, self.euclidean_dist) * self.gap
 
-            # TODO: rename to penalize_wait_time or min_total_time
-            # bc wait time isn't minimized, total time (including wait time)
-            # is minimized, wait time is penalized.
-            if self.decomposer.minimize_wait_time:
+            if self.decomposer.penalize_wait_time:
                 # theoretically, if wait time IS included in objective function,
                 # then large gap b/t time windows is a penalty,
-                # so it should increase spatial_temporal_dist
+                # so it should increase spatial_temporal_dist.
+                # in practice, it did not work well.
                 # temporal_dist = gap / euclidean_dist
                 temporal_dist = abs(temporal_dist)
 
@@ -376,7 +377,7 @@ def _pairwise_dist_v2_1(stats, decomposer):
         temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist))
         spatial_temporal_dist = euclidean_dist * (1 - temporal_weight)
 
-        if decomposer.minimize_wait_time:
+        if decomposer.penalize_wait_time:
             spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
 
     return spatial_temporal_dist
@@ -400,7 +401,7 @@ def _pairwise_dist_v2_2(stats, decomposer, weight_limit=1):
         temporal_weight = helpers.safe_divide(gap, (gap + euclidean_dist)) * weight_limit
         spatial_temporal_dist = euclidean_dist * (1 - temporal_weight)
 
-        if decomposer.minimize_wait_time:
+        if decomposer.penalize_wait_time:
             spatial_temporal_dist = euclidean_dist * (1 + temporal_weight)
 
     return spatial_temporal_dist
