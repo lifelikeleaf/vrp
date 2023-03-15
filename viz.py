@@ -223,9 +223,9 @@ def plot_instance(data, title):
     x, y = cols[0], cols[1]
     fig, ax = plt.subplots()
     # plot depot
-    ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE, marker='s') # square
+    ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
     # plot customers
-    ax.scatter(x, y, label='customers', s=MARKER_SIZE)
+    ax.scatter(x, y, label='customers')
     fig.legend(loc='upper left')
 
     # annotate customers
@@ -295,13 +295,13 @@ def plot_clusters(data, dist_matrix_func, plot=False):
         # plot depot
         depot = data[0]
         fig, ax = plt.subplots()
-        ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE, marker='s') # square
+        ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
 
         # plot customers
         nodes = list(zip(*data)) # incl. depot
         x, y = np.asarray(nodes[0]), np.asarray(nodes[1])
         for i, cluster in enumerate(clusters):
-            ax.scatter(x[cluster], y[cluster], label=f'cluster {i+1}', s=MARKER_SIZE)
+            ax.scatter(x[cluster], y[cluster], label=f'cluster {i+1}')
 
         # annotate customers
         cols = list(zip(*data[1:])) # customers only
@@ -314,12 +314,59 @@ def plot_clusters(data, dist_matrix_func, plot=False):
         plt.show()
 
 
-def plot_routes():
-    pass
+def plot_routes(data):
+    sample = 's3'
+    prefix = 'min total - ' + sample
+
+    # title = prefix + ' - euclidean'
+    # routes = [[2, 14, 6], [12, 9, 17, 13], [5], [15], [4], [7], [20], [16], [8], [3], [1], [18, 10], [11], [19]]
+
+    # title = prefix + ' - v2_2'
+    # routes = [[17, 3], [7], [16], [10], [19], [8], [18, 15], [11], [4], [1, 2, 14, 6], [12, 9, 13], [5], [20]]
+
+    # title = prefix + ' - qi'
+    # routes = [[19, 4, 16], [1, 2, 14, 6], [12, 9, 13], [20], [17, 3], [8], [7], [10], [5], [18, 15], [11]]
+
+    prefix = 'min driving - ' + sample
+
+    # title = prefix + ' - euclidean'
+    # routes = [[3, 19, 16], [18, 10, 11, 8, 1], [5, 20, 12, 9, 13], [15, 2, 14, 6], [7, 17, 4]]
+
+    # title = prefix + ' - v2_2'
+    # routes = [[15, 14, 6], [7, 12, 9, 13], [5, 20, 2], [17, 3, 4, 16], [18, 10, 11, 8, 1, 19]]
+
+    title = prefix + ' - qi'
+    routes = [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
+
+    # plot depot
+    depot = data[0]
+    fig, ax = plt.subplots()
+    ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
+
+    # plot customers
+    nodes = list(zip(*data)) # incl. depot
+    x, y = np.asarray(nodes[0]), np.asarray(nodes[1])
+    for i, route in enumerate(routes):
+        # from depot to first node
+        x_1 = [depot[0], x[route[0]]]
+        y_1 = [depot[1], y[route[0]]]
+        ax.plot(x_1, y_1, c='black', ls='dotted')
+
+        ax.plot(x[route], y[route], label=f'route {i+1}', ls='-', marker='o')
+
+    # annotate customers
+    cols = list(zip(*data[1:])) # customers only
+    x, y = cols[0], cols[1]
+    for i in range(len(data[1:])):
+        ax.annotate(i+1, (x[i], y[i]))
+
+    fig.legend(loc='upper left')
+    ax.set_title(f'{title}')
+    plt.show()
 
 
 if __name__ == '__main__':
-    data_funcs = [mock_qi_2012, s1, s2, s3]
+    # data_funcs = [mock_qi_2012, s1, s2, s3]
     data_funcs = [s3]
 
     for data_func in data_funcs:
@@ -331,8 +378,12 @@ if __name__ == '__main__':
         # data = data_gen(dir_name, instance_name, sample_size)
 
         # plot_instance(data, title=f'{data_func.__name__}')
+
         # plot_multidim_scaling(data, dist_matrix_func)
-        dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
-        for dist_matrix_func in dist_matrix_funcs:
-            plot_clusters(data, dist_matrix_func, plot=False)
+
+        # dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
+        # for dist_matrix_func in dist_matrix_funcs:
+        #     plot_clusters(data, dist_matrix_func, plot=True)
+
+        plot_routes(data)
 
