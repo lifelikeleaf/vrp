@@ -1,5 +1,6 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+import os
 import random
 import pprint as pp
 from collections import defaultdict
@@ -19,6 +20,7 @@ import vrp.decomp.distance_matrices as DM
 from manual_test import read_instance
 
 MARKER_SIZE = 10
+TEST_DIR = 'Test'
 
 
 # mock data from Qi 2012
@@ -132,23 +134,41 @@ def s2():
 # sample from R2_10_1
 def s3():
     '''min total'''
-    # euclidean cost: 6704
-    # [[2, 14, 6], [12, 9, 17, 13], [5], [15], [4], [7], [20], [16], [8], [3], [1], [18, 10], [11], [19]]
+    # no decomp cost: 6159
+    # [[19, 4, 16], [1, 2, 14, 6], [18, 15], [5], [7], [12, 9, 13], [17, 3], [10], [11, 8], [20]]
 
-    # v2_2 cost: 6520
-    # [[17, 3], [7], [16], [10], [19], [8], [18, 15], [11], [4], [1, 2, 14, 6], [12, 9, 13], [5], [20]]
+    # euclidean cost: 6704
+    # 14 routes: [[2, 14, 6], [12, 9, 17, 13], [5], [15], [4], [7], [20], [16], [8], [3], [1], [18, 10], [11], [19]]
+
+    # v2_2
+    # clusters: [[3, 7, 8, 10, 11, 15, 16, 17, 18, 19], [1, 2, 4, 5, 6, 9, 12, 13, 14, 20]]
+    # cost: 6520
+    # 13 routes: [[17, 3], [7], [16], [10], [19], [8], [18, 15], [11], [4], [1, 2, 14, 6], [12, 9, 13], [5], [20]]
+    #
+    # clusters: [[1, 3, 4, 8, 10, 11, 16, 17, 18, 19], [2, 5, 6, 7, 9, 12, 13, 14, 15, 20]]
+    # cost: 6213
+    # 12 routes: [[19, 4, 16], [1], [18, 10], [8], [11], [17, 3], [2, 14, 6], [12, 9, 13], [5], [15], [7], [20]]
 
     # qi_2012 cost: 6128
-    # [[19, 4, 16], [1, 2, 14, 6], [12, 9, 13], [20], [17, 3], [8], [7], [10], [5], [18, 15], [11]]
+    # 11 routes: [[19, 4, 16], [1, 2, 14, 6], [12, 9, 13], [20], [17, 3], [8], [7], [10], [5], [18, 15], [11]]
     '''min driving'''
-    # euclidean cost: 3718
-    # [[3, 19, 16], [18, 10, 11, 8, 1], [5, 20, 12, 9, 13], [15, 2, 14, 6], [7, 17, 4]]
+    # no decomp cost: 3434
+    # [[7, 17, 3, 4, 16], [15, 2, 14, 6], [18, 10, 11, 8, 1, 19], [5, 20, 12, 9, 13]]
 
-    # v2_2 cost: 3524
-    # [[15, 14, 6], [7, 12, 9, 13], [5, 20, 2], [17, 3, 4, 16], [18, 10, 11, 8, 1, 19]]
+    # euclidean cost: 3718
+    # 5 routes: [[3, 19, 16], [18, 10, 11, 8, 1], [5, 20, 12, 9, 13], [15, 2, 14, 6], [7, 17, 4]]
+
+    # v2_2
+    # clusters: [[3, 7, 8, 10, 11, 15, 16, 17, 18, 19], [1, 2, 4, 5, 6, 9, 12, 13, 14, 20]]
+    # cost: 4118
+    # 5 routes: [[7, 17, 3, 19, 16], [15], [18, 10, 11, 8], [5, 20, 12, 9, 13, 4], [1, 2, 14, 6]]
+    #
+    # clusters: [[1, 3, 4, 8, 10, 11, 16, 17, 18, 19], [2, 5, 6, 7, 9, 12, 13, 14, 15, 20]]
+    # cost: 3524
+    # 5 routes: [[15, 14, 6], [7, 12, 9, 13], [5, 20, 2], [17, 3, 4, 16], [18, 10, 11, 8, 1, 19]]
 
     # qi_2012 cost: 4405
-    # [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
+    # 7 routes: [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
     data = [[250, 250, 0, 7697, 0],
     [0, 188, 3709, 3867, 10],
     [174, 347, 4047, 4191, 10],
@@ -179,7 +199,6 @@ def data_gen(dir_name, instance_name, sample_size):
     data = [inst.depot]
     data.extend(sample)
     print(data)
-    # data = [0, 230, 634, 248, 799, 997, 605, 266, 901, 625, 698] # sample_R2_10_1
     nodes = np.asarray(converted_inst.nodes)[data]
     sample_inst = VRPInstance(nodes, converted_inst.vehicle_capacity, converted_inst.extra)
     feature_vectors = helpers.build_feature_vectors(sample_inst)
@@ -265,79 +284,95 @@ def plot_multidim_scaling(data, dist_matrix_func):
     plt.show()
 
 
-def plot_clusters(data, dist_matrix_func, plot=False):
-    title = dist_matrix_func.__name__.removesuffix('_vectorized')
+def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name):
+    title = sample_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
     num_clusters = 2
-    time_limit = 5
 
-    vrp_inst = build_vrp_instance_from_mock(data)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True, use_gap=True, normalize=True)
     decomposer.num_clusters = num_clusters
 
-    if not plot:
-        solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
-        runner = DecompositionRunner(vrp_inst, decomposer, solver)
-        solution = runner.run(in_parallel=True, num_workers=num_clusters)
-        if solution.metrics[METRIC_COST] == float('inf'):
-            print('No feasible solution found.')
-        else:
-            cost = solution.metrics[METRIC_COST]
-            routes = solution.routes
-            print()
-            print(f'============ {title} cost: {cost} ============')
-            print(f'num routes: {len(routes)}')
-            print(routes)
+    clusters = decomposer.decompose(vrp_inst)
+    print()
+    print(f'============ {title} clusters: {clusters} ============')
+
+    json_data = {
+        'title': title,
+        'clusters': clusters,
+    }
+    helpers.write_to_json(json_data, output_file_name)
+
+    return clusters
+
+
+class MockDecomposer:
+    def __init__(self, clusters) -> None:
+        self.clusters = clusters
+
+    def decompose(self, inst):
+        return self.clusters
+
+
+def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False):
+    num_clusters = 2
+    time_limit = 5
+
+    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
+    if no_decomp:
+        solution = solver.solve(vrp_inst)
+        title = 'no decomp'
     else:
-        clusters = decomposer.decompose(vrp_inst)
+        decomposer = MockDecomposer(clusters)
+        runner = DecompositionRunner(vrp_inst, decomposer, solver)
+        runner.decomposer.clusters = clusters
+        solution = runner._run_solver_parallel(num_workers=num_clusters)
+
+    if solution.metrics[METRIC_COST] == float('inf'):
+        print('No feasible solution found.')
+    else:
+        cost = solution.metrics[METRIC_COST]
+        routes = solution.routes
         print()
-        print(f'============ {title} clusters: {clusters} ============')
+        print(f'============ {title} cost: {cost} ============')
+        print(f'num routes: {len(routes)}')
+        print(routes)
 
-        # plot depot
-        depot = data[0]
-        fig, ax = plt.subplots()
-        ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
+        json_data = {
+            'title': title,
+            'cost': cost,
+            'num_routes': len(routes),
+            'routes': routes,
+        }
+        helpers.write_to_json(json_data, output_file_name)
 
-        # plot customers
-        nodes = list(zip(*data)) # incl. depot
-        x, y = np.asarray(nodes[0]), np.asarray(nodes[1])
-        for i, cluster in enumerate(clusters):
-            ax.scatter(x[cluster], y[cluster], label=f'cluster {i+1}')
-
-        # annotate customers
-        cols = list(zip(*data[1:])) # customers only
-        x, y = cols[0], cols[1]
-        for i in range(len(data[1:])):
-            ax.annotate(i+1, (x[i], y[i]))
-
-        fig.legend(loc='upper left')
-        ax.set_title(f'{title}')
-        plt.show()
+        return routes
 
 
-def plot_routes(data):
-    sample = 's3'
-    prefix = 'min total - ' + sample
+def plot_clusters(clusters, title, clusters_dir):
+    # plot depot
+    depot = data[0]
+    fig, ax = plt.subplots()
+    ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
 
-    # title = prefix + ' - euclidean'
-    # routes = [[2, 14, 6], [12, 9, 17, 13], [5], [15], [4], [7], [20], [16], [8], [3], [1], [18, 10], [11], [19]]
+    # plot customers
+    nodes = list(zip(*data)) # incl. depot
+    x, y = np.asarray(nodes[0]), np.asarray(nodes[1])
+    for i, cluster in enumerate(clusters):
+        ax.scatter(x[cluster], y[cluster], label=f'cluster {i+1}')
 
-    # title = prefix + ' - v2_2'
-    # routes = [[17, 3], [7], [16], [10], [19], [8], [18, 15], [11], [4], [1, 2, 14, 6], [12, 9, 13], [5], [20]]
+    # annotate customers
+    cols = list(zip(*data[1:])) # customers only
+    x, y = cols[0], cols[1]
+    for i in range(len(data[1:])):
+        ax.annotate(i+1, (x[i], y[i]))
 
-    # title = prefix + ' - qi'
-    # routes = [[19, 4, 16], [1, 2, 14, 6], [12, 9, 13], [20], [17, 3], [8], [7], [10], [5], [18, 15], [11]]
+    fig.legend(loc='upper left')
+    ax.set_title(f'{title}')
+    # plt.show()
+    fname = os.path.join(clusters_dir, title)
+    fig.savefig(fname)
 
-    prefix = 'min driving - ' + sample
 
-    # title = prefix + ' - euclidean'
-    # routes = [[3, 19, 16], [18, 10, 11, 8, 1], [5, 20, 12, 9, 13], [15, 2, 14, 6], [7, 17, 4]]
-
-    # title = prefix + ' - v2_2'
-    # routes = [[15, 14, 6], [7, 12, 9, 13], [5, 20, 2], [17, 3, 4, 16], [18, 10, 11, 8, 1, 19]]
-
-    title = prefix + ' - qi'
-    routes = [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
-
+def plot_routes(data, routes, title, cost, routes_dir):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots()
@@ -361,29 +396,60 @@ def plot_routes(data):
         ax.annotate(i+1, (x[i], y[i]))
 
     fig.legend(loc='upper left')
-    ax.set_title(f'{title}')
-    plt.show()
+    fig.suptitle(f"{title}")
+    ax.set_title(f'(cost: {cost})')
+    # plt.show()
+    fname = os.path.join(routes_dir, title)
+    fig.savefig(fname)
 
 
 if __name__ == '__main__':
     # data_funcs = [mock_qi_2012, s1, s2, s3]
     data_funcs = [s3]
+    dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
+    # dist_matrix_funcs = [DM.euclidean_vectorized]
+    min_total = False
+    ext = 'min total' if min_total else 'min driving'
 
     for data_func in data_funcs:
         data = data_func()
+        sample_name = data_func.__name__
 
         # dir_name = HG
         # instance_name = 'R2_10_1'
         # sample_size = 20
         # data = data_gen(dir_name, instance_name, sample_size)
 
-        # plot_instance(data, title=f'{data_func.__name__}')
+        vrp_inst = build_vrp_instance_from_mock(data)
 
-        # plot_multidim_scaling(data, dist_matrix_func)
+        # plot_instance(data, sample_name)
 
-        # dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
+        clusters_dir = os.path.join(TEST_DIR, 'clusters')
+        helpers.make_dirs(clusters_dir)
+        clusters_output_file_name = os.path.join(clusters_dir, f'{sample_name}')
+
+        routes_dir = os.path.join(TEST_DIR, 'routes', ext)
+        helpers.make_dirs(routes_dir)
+        routes_output_file_name = os.path.join(routes_dir, f'{sample_name}')
+
         # for dist_matrix_func in dist_matrix_funcs:
-        #     plot_clusters(data, dist_matrix_func, plot=True)
+        #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_output_file_name)
 
-        plot_routes(data)
+        clusters_data_gen = helpers.read_json_gen(clusters_output_file_name)
+        for clusters_data in clusters_data_gen:
+            title = clusters_data['title']
+            clusters = clusters_data['clusters']
+
+            # plot_clusters(clusters, title, clusters_dir)
+
+            # solve(vrp_inst, clusters, title, min_total, routes_output_file_name)
+
+        routes_data_gen = helpers.read_json_gen(routes_output_file_name)
+        for routes_data in routes_data_gen:
+            title = routes_data['title']
+            cost = routes_data['cost']
+            routes = routes_data['routes']
+
+            title = title + ' - ' + ext
+            plot_routes(data, routes, title, cost, routes_dir)
 
