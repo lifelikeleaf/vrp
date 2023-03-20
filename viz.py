@@ -25,24 +25,6 @@ TEST_DIR = 'Test'
 
 # mock data from Qi 2012
 def mock_qi_2012():
-    '''min total'''
-    # euclidean cost: 400
-    # [[3, 1], [2], [6, 4], [5]]
-
-    # v2_2 cost: 400
-    # [[6, 4], [5], [3, 1], [2]]
-
-    # qi_2012 cost: 400
-    # [[4, 6], [2], [3, 1], [5]]
-    '''min driving'''
-    # euclidean cost: 240
-    # [[3, 1, 2], [5, 6, 4]]
-
-    # v2_2 cost: 240
-    # [[5, 6, 4], [3, 1, 2]]
-
-    # qi_2012 cost: 400
-    # [[4, 6], [2], [3, 1], [5]]
     return [
         [50, 50, 0, 720, 0], # depot
         [10, 10, 60, 120, 10],
@@ -56,24 +38,6 @@ def mock_qi_2012():
 
 # sample from R2_10_1
 def s1():
-    '''min total'''
-    # euclidean cost: 3120
-    # [[5, 10], [4], [1], [2], [8], [7], [9], [6], [3]]
-
-    # v2_2 cost: 3120
-    # [[7], [6], [3], [5, 10], [4], [1], [2], [8], [9]]
-
-    # qi_2012 cost: 2998
-    # [[5, 10], [2], [8], [9], [7, 1], [6], [4], [3]]
-    '''min driving'''
-    # euclidean cost: 1660
-    # [[10, 5, 8, 2, 1, 4], [9, 3, 6, 7]]
-
-    # v2_2 cost: 1835
-    # [[10, 5, 8, 2, 1, 4], [9], [3, 6, 7]]
-
-    # qi_2012 cost: 1914
-    # [[3, 6, 7, 1, 4], [10, 5, 8, 2], [9]]
     data = [[250, 250, 0, 7697, 0], # depot
     [94, 192, 4319, 4444, 10],
     [80, 357, 2093, 2271, 10],
@@ -90,24 +54,6 @@ def s1():
 
 # sample from R2_10_1
 def s2():
-    '''min total'''
-    # euclidean cost: 6238
-    # [[6], [14, 16], [3, 15], [2], [4], [5], [13], [11, 19], [18], [1], [17], [9, 7], [12, 20, 8], [10]]
-
-    # v2_2 cost: 6116
-    # [[4], [3, 15], [6], [11, 5], [14, 16], [17, 2], [1], [19], [18], [9, 7, 13], [12, 20, 8], [10]]
-
-    # qi_2012 cost: 6472
-    # [[11, 5], [8, 10], [1], [19, 4], [12], [20], [6], [14, 16], [17, 2], [3, 15], [9, 7, 13], [18]]
-    '''min driving'''
-    # euclidean cost: 3109
-    # [[14, 16, 13, 6, 5], [2, 3, 15, 4], [18], [17, 12, 20, 11], [9, 7, 8, 10, 19, 1]]
-
-    # v2_2 cost: 3035
-    # [[3, 15, 6, 4], [17, 14, 16, 13, 12, 20, 11, 5], [2, 9, 7, 8, 10, 19, 1], [18]]
-
-    # qi_2012 cost: 3678
-    # [[2, 9, 7, 18], [3, 15, 6], [17, 14, 16, 13, 20], [11, 5, 4], [12, 8, 10, 19, 1]]
     data = [[250, 250, 0, 7697, 0],
     [241, 180, 6789, 6887, 10],
     [226, 316, 234, 328, 10],
@@ -133,42 +79,6 @@ def s2():
 
 # sample from R2_10_1
 def s3():
-    '''min total'''
-    # no decomp cost: 6159
-    # [[19, 4, 16], [1, 2, 14, 6], [18, 15], [5], [7], [12, 9, 13], [17, 3], [10], [11, 8], [20]]
-
-    # euclidean cost: 6704
-    # 14 routes: [[2, 14, 6], [12, 9, 17, 13], [5], [15], [4], [7], [20], [16], [8], [3], [1], [18, 10], [11], [19]]
-
-    # v2_2
-    # clusters: [[3, 7, 8, 10, 11, 15, 16, 17, 18, 19], [1, 2, 4, 5, 6, 9, 12, 13, 14, 20]]
-    # cost: 6520
-    # 13 routes: [[17, 3], [7], [16], [10], [19], [8], [18, 15], [11], [4], [1, 2, 14, 6], [12, 9, 13], [5], [20]]
-    #
-    # clusters: [[1, 3, 4, 8, 10, 11, 16, 17, 18, 19], [2, 5, 6, 7, 9, 12, 13, 14, 15, 20]]
-    # cost: 6213
-    # 12 routes: [[19, 4, 16], [1], [18, 10], [8], [11], [17, 3], [2, 14, 6], [12, 9, 13], [5], [15], [7], [20]]
-
-    # qi_2012 cost: 6128
-    # 11 routes: [[19, 4, 16], [1, 2, 14, 6], [12, 9, 13], [20], [17, 3], [8], [7], [10], [5], [18, 15], [11]]
-    '''min driving'''
-    # no decomp cost: 3434
-    # [[7, 17, 3, 4, 16], [15, 2, 14, 6], [18, 10, 11, 8, 1, 19], [5, 20, 12, 9, 13]]
-
-    # euclidean cost: 3718
-    # 5 routes: [[3, 19, 16], [18, 10, 11, 8, 1], [5, 20, 12, 9, 13], [15, 2, 14, 6], [7, 17, 4]]
-
-    # v2_2
-    # clusters: [[3, 7, 8, 10, 11, 15, 16, 17, 18, 19], [1, 2, 4, 5, 6, 9, 12, 13, 14, 20]]
-    # cost: 4118
-    # 5 routes: [[7, 17, 3, 19, 16], [15], [18, 10, 11, 8], [5, 20, 12, 9, 13, 4], [1, 2, 14, 6]]
-    #
-    # clusters: [[1, 3, 4, 8, 10, 11, 16, 17, 18, 19], [2, 5, 6, 7, 9, 12, 13, 14, 15, 20]]
-    # cost: 3524
-    # 5 routes: [[15, 14, 6], [7, 12, 9, 13], [5, 20, 2], [17, 3, 4, 16], [18, 10, 11, 8, 1, 19]]
-
-    # qi_2012 cost: 4405
-    # 7 routes: [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
     data = [[250, 250, 0, 7697, 0], # 0
     [0, 188, 3709, 3867, 10], # 1
     [174, 347, 4047, 4191, 10], # 2
@@ -215,7 +125,7 @@ def build_vrp_instance_from_mock(data):
     feature_vectors = helpers.FV(fv_data) # incl. depot
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
     distances = decomposer.dist_matrix_func(feature_vectors, decomposer)
-    distances = np.round(distances)
+    distances = np.round(distances).astype(int)
 
     node_list = []
     for customer_id in range(len(data)):
@@ -319,11 +229,15 @@ class MockDecomposer:
         return self.clusters
 
 
-def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False, to_json=False):
+def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False, to_json=False, verbose=False):
     num_clusters = 2
     time_limit = 5
 
-    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
+    if min_total:
+        solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
+    else:
+        # solver = HgsSolverWrapper(time_limit=time_limit)
+        solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
     if no_decomp:
         solution = solver.solve(vrp_inst)
         title = 'no decomp'
@@ -340,13 +254,15 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
         routes = solution.routes
         print()
         print(f'============ {title} cost: {cost} ============')
-        print_solution(solution, vrp_inst, verbose=True)
+        driving_time, wait_time = print_solution(solution, vrp_inst, verbose=verbose)
         print()
 
         if to_json:
             json_data = {
                 'title': title,
-                'cost': cost,
+                'cost': round(cost),
+                'driving_time': round(driving_time),
+                'wait_time': round(wait_time),
                 'num_routes': len(routes),
                 'routes': routes,
             }
@@ -358,7 +274,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
 def plot_clusters(clusters, title, clusters_dir):
     # plot depot
     depot = data[0]
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(layout='constrained')
     ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
 
     # plot customers
@@ -373,17 +289,17 @@ def plot_clusters(clusters, title, clusters_dir):
     for i in range(len(data[1:])):
         ax.annotate(i+1, (x[i], y[i]))
 
-    fig.legend(loc='upper left')
+    fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title}')
     # plt.show()
     fname = os.path.join(clusters_dir, title)
     fig.savefig(fname)
 
 
-def plot_routes(data, routes, title, cost, routes_dir):
+def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir):
     # plot depot
     depot = data[0]
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(layout='constrained')
     ax.scatter(depot[0], depot[1], label='depot', c='black', marker='s') # square
 
     # plot customers
@@ -403,9 +319,8 @@ def plot_routes(data, routes, title, cost, routes_dir):
     for i in range(len(data[1:])):
         ax.annotate(i+1, (x[i], y[i]))
 
-    fig.legend(loc='upper left')
-    fig.suptitle(f"{title}")
-    ax.set_title(f'(cost: {cost})')
+    fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
+    ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}, wait time: {wait_time})')
     # plt.show()
     fname = os.path.join(routes_dir, title)
     fig.savefig(fname)
@@ -416,7 +331,9 @@ if __name__ == '__main__':
     data_funcs = [s3]
     dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
     # dist_matrix_funcs = [DM.euclidean_vectorized]
-    min_total = False
+
+    '''STEP 0'''
+    min_total = True
     ext = 'min total' if min_total else 'min driving'
 
     for data_func in data_funcs:
@@ -430,6 +347,7 @@ if __name__ == '__main__':
 
         vrp_inst = build_vrp_instance_from_mock(data)
 
+        '''STEP 1'''
         # plot_instance(data, sample_name)
 
         clusters_dir = os.path.join(TEST_DIR, 'clusters')
@@ -440,6 +358,7 @@ if __name__ == '__main__':
         helpers.make_dirs(routes_dir)
         routes_output_file_name = os.path.join(routes_dir, f'{sample_name}')
 
+        '''STEP 2.1'''
         # for dist_matrix_func in dist_matrix_funcs:
         #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_output_file_name, to_json=True)
 
@@ -448,16 +367,21 @@ if __name__ == '__main__':
             title = clusters_data['title']
             clusters = clusters_data['clusters']
 
+            '''STEP 2.2'''
             # plot_clusters(clusters, title, clusters_dir)
 
-            solve(vrp_inst, clusters, title, min_total, routes_output_file_name, to_json=False)
+            '''STEP 3.1'''
+            # solve(vrp_inst, clusters, title, min_total, routes_output_file_name, to_json=True, verbose=True)
 
-        # routes_data_gen = helpers.read_json_gen(routes_output_file_name)
-        # for routes_data in routes_data_gen:
-        #     title = routes_data['title']
-        #     cost = routes_data['cost']
-        #     routes = routes_data['routes']
+        '''STEP 3.2'''
+        routes_data_gen = helpers.read_json_gen(routes_output_file_name)
+        for routes_data in routes_data_gen:
+            title = routes_data['title']
+            cost = routes_data['cost']
+            driving_time = routes_data['driving_time']
+            wait_time = routes_data['wait_time']
+            routes = routes_data['routes']
 
-        #     title = title + ' - ' + ext
-        #     plot_routes(data, routes, title, cost, routes_dir)
+            title = title + ' - ' + ext
+            plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir)
 

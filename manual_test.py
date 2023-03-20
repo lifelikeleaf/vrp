@@ -694,6 +694,8 @@ def print_solution(solution, converted_inst, verbose=False):
     print(f'num routes: {len(routes)}')
     print(f'routes: {routes}')
 
+    return total_time, total_wait_time
+
 
 def test_antiderivative_vs_quad():
 

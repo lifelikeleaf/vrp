@@ -177,9 +177,9 @@ def df_to_excel(df: pd.DataFrame, file_name, sheet_name, overlay=True, index=Fal
 write_to_excel = df_to_excel
 
 
-def write_to_json(data, file_name):
+def write_to_json(data, file_name, mode='a'):
     file_name = file_name + '.json'
-    with open(file_name, 'a') as f:
+    with open(file_name, mode) as f:
         json.dump(data, f) #, indent=4)
         f.write('\n')
 
