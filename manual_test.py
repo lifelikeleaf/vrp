@@ -17,7 +17,7 @@ from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 from vrp.decomp.decomposers import (
     KMedoidsDecomposer, APDecomposer, KMeansDecomposer, HierarchicalDecomposer
 )
-from vrp.decomp.decomposition import DecompositionRunner
+from vrp.decomp.decomposition import DecompositionRunner, VRPInstance
 from vrp.decomp.constants import *
 import vrp.decomp.distance_matrices as DM
 
@@ -26,13 +26,13 @@ TEST_DIR = 'Test'
 MARKER_SIZE = 10
 
 
-def compute_route_time_and_wait_time(route, inst, route_start=None, verbose=False):
+def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_start=None, verbose=False):
     # `route` doesn't include depot; `inst` does include depot = 0
 
     depot = 0
     first_stop = route[0]
     route_wait_time = 0
-    route_time = inst.distances[depot][first_stop]
+    route_time = inst.nodes[depot].distances[first_stop]
 
     # don't count the wait time at the first stop
     # bc the vehicle could always be dispatched later from the depot
@@ -44,26 +44,26 @@ def compute_route_time_and_wait_time(route, inst, route_start=None, verbose=Fals
     if route_start is not None:
         depot_departure_time = route_start
     else:
-        depot_departure_time = inst.earliest[depot] + inst.service_times[depot]
+        depot_departure_time = inst.nodes[depot].start_time + inst.nodes[depot].service_time
     # earliest possible arrival time at the first stop
     # = earliest possible time to leave the depot + travel time from depot to the first stop
-    travel_time = inst.distances[depot][first_stop]
+    travel_time = inst.nodes[depot].distances[first_stop]
     arrival_time = depot_departure_time + travel_time
     # logical earliest start time at the first stop
     # = the later of arrival time and TW earliest start time
-    tw_earliest_start = inst.earliest[first_stop]
-    tw_latest_start = inst.latest[first_stop]
+    tw_earliest_start = inst.nodes[first_stop].start_time
+    tw_latest_start = inst.nodes[first_stop].end_time
     logical_earliest_start = max(arrival_time, tw_earliest_start)
     # departure time from the first node
-    service_time = inst.service_times[first_stop]
+    service_time = inst.nodes[first_stop].service_time
     departure_time = logical_earliest_start + service_time
 
     if verbose:
-        print('--------------- START ROUTE ---------------')
+        print(f'--------------- START ROUTE {route_num + 1} ---------------')
         print(f'depot departure time = {depot_departure_time}')
         print(f'travel time from depot to {first_stop} = {travel_time}', end=', ')
-        print(f'coords for deopot = {inst.coordinates[depot]}', end=', ')
-        print(f'coords for stop {first_stop} = {inst.coordinates[first_stop]}')
+        print(f'coords for deopot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})', end=', ')
+        print(f'coords for stop {first_stop} = ({inst.nodes[first_stop].x_coord}, {inst.nodes[first_stop].y_coord})')
 
         print(f'stop = {first_stop}', end=', ')
         print(f'arrival time = {arrival_time}', end=', ')
@@ -75,22 +75,22 @@ def compute_route_time_and_wait_time(route, inst, route_start=None, verbose=Fals
 
     prev_stop = first_stop
     for stop in route[1:]: # start counting wait time from the 2nd stop
-        travel_time = inst.distances[prev_stop][stop]
+        travel_time = inst.nodes[prev_stop].distances[stop]
         route_time += travel_time
-        tw_earliest_start = inst.earliest[stop]
-        tw_latest_start = inst.latest[stop]
+        tw_earliest_start = inst.nodes[stop].start_time
+        tw_latest_start = inst.nodes[stop].end_time
         arrival_time = departure_time + travel_time
         # Wait if we arrive before earliest start
         wait_time = max(0, tw_earliest_start - arrival_time)
         route_wait_time += wait_time
         logical_earliest_start = arrival_time + wait_time
-        service_time = inst.service_times[stop]
+        service_time = inst.nodes[stop].service_time
         departure_time = logical_earliest_start + service_time
 
         if verbose:
             print(f'travel time from {prev_stop} to {stop} = {travel_time}', end=', ')
-            print(f'coords for prev stop {prev_stop} = {inst.coordinates[prev_stop]}', end=', ')
-            print(f'coords for stop {stop} = {inst.coordinates[stop]}')
+            print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
+            print(f'coords for stop {stop} = ({inst.nodes[stop].x_coord}, {inst.nodes[stop].y_coord})')
 
             print(f'stop = {stop}', end=', ')
             print(f'arrival time = {arrival_time}', end=', ')
@@ -104,23 +104,23 @@ def compute_route_time_and_wait_time(route, inst, route_start=None, verbose=Fals
         prev_stop = stop
 
     # back to the depot
-    travel_time = inst.distances[prev_stop][depot]
+    travel_time = inst.nodes[prev_stop].distances[depot]
     route_time += travel_time
     arrival_time = departure_time + travel_time
-    tw_earliest_start = inst.earliest[depot]
-    tw_latest_start = inst.latest[depot]
+    tw_earliest_start = inst.nodes[depot].start_time
+    tw_latest_start = inst.nodes[depot].end_time
 
     if verbose:
-        print(f'travel time from {prev_stop} to depot = {inst.distances[prev_stop][depot]}', end=', ')
-        print(f'coords for prev stop {prev_stop} = {inst.coordinates[prev_stop]}', end=', ')
-        print(f'coords for depot = {inst.coordinates[depot]}')
+        print(f'travel time from {prev_stop} to depot = {inst.nodes[prev_stop].distances[depot]}', end=', ')
+        print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
+        print(f'coords for depot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})')
         print(f'return time to depot = {arrival_time}', end=', ')
         print(f'depot TW = [{tw_earliest_start}, {tw_latest_start}]')
         print()
 
         print(f'route time = {route_time}')
         print(f'route wait time = {route_wait_time}')
-        print('--------------- END ROUTE ---------------')
+        print(f'--------------- END ROUTE {route_num + 1} ---------------')
         print()
 
     return route_time, route_wait_time
@@ -611,7 +611,7 @@ def analyze_overlap_gap_effect():
 def test_decompose():
     dir_name = SOLOMON
     instance_name = 'C101'
-    inst, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = read_instance(dir_name, instance_name)
     dist_matrix_func = DM.euclidean_vectorized
 
     # decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True)
@@ -624,7 +624,7 @@ def test_decompose():
 def test_solver():
     dir_name = HG
     instance_name = 'C1_10_2'
-    inst, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = read_instance(dir_name, instance_name)
     time_limit = 10
 
     print(f'instance: {instance_name}')
@@ -635,14 +635,14 @@ def test_solver():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, inst)
+        print_solution(solution, converted_inst)
 
 
 def test_framework():
     dir_name = HG
-    instance_name = 'R2_10_1'
+    instance_name = 'R2_2_1'
     num_clusters = 2
-    inst, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = read_instance(dir_name, instance_name)
     dist_matrix_func = DM.v2_2_vectorized
     time_limit = 10
 
@@ -651,16 +651,22 @@ def test_framework():
     # solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=False)
     solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, num_clusters=num_clusters, use_gap=True)
+    decomposer = KMedoidsDecomposer(
+        dist_matrix_func=dist_matrix_func,
+        num_clusters=num_clusters,
+        use_overlap=True,
+        use_gap=True,
+        normalize=True
+    )
     runner = DecompositionRunner(converted_inst, decomposer, solver)
     solution = runner.run(in_parallel=True, num_workers=num_clusters)
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, inst)
+        print_solution(solution, converted_inst)
 
 
-def print_solution(solution, inst):
+def print_solution(solution, converted_inst, verbose=False):
     cost = solution.metrics[METRIC_COST]
     wait_time = solution.metrics[METRIC_WAIT_TIME]
     routes = solution.routes
@@ -676,7 +682,7 @@ def print_solution(solution, inst):
         if extra is not None:
             route_start = route_starts[i]
 
-        route_time, route_wait_time = compute_route_time_and_wait_time(route, inst, route_start, verbose=False)
+        route_time, route_wait_time = compute_route_time_and_wait_time(route, i, converted_inst, route_start, verbose=verbose)
         total_time += route_time
         total_wait_time += route_wait_time
 
@@ -816,7 +822,7 @@ def validate_routes():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, inst)
+        print_solution(solution, converted_inst)
         instance = dict(
             coords = np.array(inst.coordinates),
             demands = np.array(inst.demands),

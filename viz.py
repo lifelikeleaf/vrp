@@ -17,7 +17,7 @@ from vrp.decomp.decomposition import Node, VRPInstance
 from vrp.decomp.constants import *
 import vrp.decomp.distance_matrices as DM
 
-from manual_test import read_instance
+from manual_test import read_instance, print_solution
 
 MARKER_SIZE = 10
 TEST_DIR = 'Test'
@@ -169,27 +169,27 @@ def s3():
 
     # qi_2012 cost: 4405
     # 7 routes: [[15], [7], [18, 10, 11, 8], [5], [17, 3, 4, 16], [1, 2, 14, 6], [20, 12, 9, 13, 19]]
-    data = [[250, 250, 0, 7697, 0],
-    [0, 188, 3709, 3867, 10],
-    [174, 347, 4047, 4191, 10],
-    [497, 54, 3918, 4027, 10],
-    [488, 173, 4836, 4966, 10],
-    [250, 328, 1001, 1108, 10],
-    [230, 487, 4552, 4605, 10],
-    [468, 360, 1104, 1208, 10],
-    [39, 162, 2269, 2373, 10],
-    [380, 350, 3462, 3589, 10],
-    [198, 85, 1032, 1189, 10],
-    [150, 68, 1710, 1793, 10],
-    [377, 432, 3343, 3429, 10],
-    [348, 348, 3705, 3893, 10],
-    [178, 420, 4290, 4401, 10],
-    [77, 465, 1029, 1179, 10],
-    [323, 34, 5244, 5394, 10],
-    [404, 207, 3634, 3771, 10],
-    [105, 140, 678, 779, 10],
-    [297, 131, 4640, 4803, 10],
-    [267, 374, 2425, 2501, 10]]
+    data = [[250, 250, 0, 7697, 0], # 0
+    [0, 188, 3709, 3867, 10], # 1
+    [174, 347, 4047, 4191, 10], # 2
+    [497, 54, 3918, 4027, 10], # 3
+    [488, 173, 4836, 4966, 10], # 4
+    [250, 328, 1001, 1108, 10], # 5
+    [230, 487, 4552, 4605, 10], # 6
+    [468, 360, 1104, 1208, 10], # 7
+    [39, 162, 2269, 2373, 10], # 8
+    [380, 350, 3462, 3589, 10], # 9
+    [198, 85, 1032, 1189, 10], # 10
+    [150, 68, 1710, 1793, 10], # 11
+    [377, 432, 3343, 3429, 10], # 12
+    [348, 348, 3705, 3893, 10], # 13
+    [178, 420, 4290, 4401, 10], # 14
+    [77, 465, 1029, 1179, 10], # 15
+    [323, 34, 5244, 5394, 10], # 16
+    [404, 207, 3634, 3771, 10], # 17
+    [105, 140, 678, 779, 10], # 18
+    [297, 131, 4640, 4803, 10], # 19
+    [267, 374, 2425, 2501, 10]] # 20
     return data
 
 
@@ -215,6 +215,7 @@ def build_vrp_instance_from_mock(data):
     feature_vectors = helpers.FV(fv_data) # incl. depot
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
     distances = decomposer.dist_matrix_func(feature_vectors, decomposer)
+    distances = np.round(distances)
 
     node_list = []
     for customer_id in range(len(data)):
@@ -284,22 +285,28 @@ def plot_multidim_scaling(data, dist_matrix_func):
     plt.show()
 
 
-def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name):
+def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name, to_json=False):
     title = sample_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
     num_clusters = 2
 
-    decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True, use_gap=True, normalize=True)
-    decomposer.num_clusters = num_clusters
+    decomposer = KMedoidsDecomposer(
+        dist_matrix_func=dist_matrix_func,
+        num_clusters=num_clusters,
+        use_overlap=True,
+        use_gap=True,
+        normalize=True
+    )
 
     clusters = decomposer.decompose(vrp_inst)
     print()
     print(f'============ {title} clusters: {clusters} ============')
 
-    json_data = {
-        'title': title,
-        'clusters': clusters,
-    }
-    helpers.write_to_json(json_data, output_file_name)
+    if to_json:
+        json_data = {
+            'title': title,
+            'clusters': clusters,
+        }
+        helpers.write_to_json(json_data, output_file_name)
 
     return clusters
 
@@ -312,7 +319,7 @@ class MockDecomposer:
         return self.clusters
 
 
-def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False):
+def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False, to_json=False):
     num_clusters = 2
     time_limit = 5
 
@@ -333,18 +340,19 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
         routes = solution.routes
         print()
         print(f'============ {title} cost: {cost} ============')
-        print(f'num routes: {len(routes)}')
-        print(routes)
+        print_solution(solution, vrp_inst, verbose=True)
+        print()
 
-        json_data = {
-            'title': title,
-            'cost': cost,
-            'num_routes': len(routes),
-            'routes': routes,
-        }
-        helpers.write_to_json(json_data, output_file_name)
+        if to_json:
+            json_data = {
+                'title': title,
+                'cost': cost,
+                'num_routes': len(routes),
+                'routes': routes,
+            }
+            helpers.write_to_json(json_data, output_file_name)
 
-        return routes
+        return solution
 
 
 def plot_clusters(clusters, title, clusters_dir):
@@ -433,7 +441,7 @@ if __name__ == '__main__':
         routes_output_file_name = os.path.join(routes_dir, f'{sample_name}')
 
         # for dist_matrix_func in dist_matrix_funcs:
-        #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_output_file_name)
+        #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_output_file_name, to_json=True)
 
         clusters_data_gen = helpers.read_json_gen(clusters_output_file_name)
         for clusters_data in clusters_data_gen:
@@ -442,14 +450,14 @@ if __name__ == '__main__':
 
             # plot_clusters(clusters, title, clusters_dir)
 
-            # solve(vrp_inst, clusters, title, min_total, routes_output_file_name)
+            solve(vrp_inst, clusters, title, min_total, routes_output_file_name, to_json=False)
 
-        routes_data_gen = helpers.read_json_gen(routes_output_file_name)
-        for routes_data in routes_data_gen:
-            title = routes_data['title']
-            cost = routes_data['cost']
-            routes = routes_data['routes']
+        # routes_data_gen = helpers.read_json_gen(routes_output_file_name)
+        # for routes_data in routes_data_gen:
+        #     title = routes_data['title']
+        #     cost = routes_data['cost']
+        #     routes = routes_data['routes']
 
-            title = title + ' - ' + ext
-            plot_routes(data, routes, title, cost, routes_dir)
+        #     title = title + ' - ' + ext
+        #     plot_routes(data, routes, title, cost, routes_dir)
 
