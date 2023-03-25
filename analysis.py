@@ -86,7 +86,7 @@ def percent_diff(col1, col2, denom=None):
     return percent
 
 
-def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=False, dump_avg=False, dump_all=False):
+def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=False, dump_avg=False, dump_all=False, min_total=False):
     for exp_name in exp_names:
         input_file_name = os.path.join(dir_name, f'{dir_name}_{exp_name}.xlsx')
         dfs = dict(
@@ -94,16 +94,19 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
         )
 
 
+        '''STEP 1'''
         '''MODIFY: sheet names and df column names'''
 
-        # versions = ['v2_2', 'v2_3', 'v2_5']
-        versions = ['v2_5', 'v2_8', 'v2_9']
+        dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
+        # dfs[f'OL_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'OL_v2_2')
+        # dfs[f'Gap_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'Gap_v2_2')
+        # dfs[f'Both_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'Both_v2_2')
+
+        versions = ['v2_3', 'v2_5', 'v2_8', 'v2_9']
         for v in versions:
             dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
             dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
-            # dfs[f'GapMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapMinWait_{v}')
-            # dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
-            # dfs[f'BothMinWait_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothMinWait_{v}')
+            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
 
         '''END MODIFY'''
 
@@ -119,23 +122,23 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             # add an empty column
             comp_best[''] = ''
             output_name_best = f'best_{output_name}'
-            dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name, dump_best=True)
+            dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name, min_total, dump_best)
 
         if dump_avg:
             dfs_avg = {name: get_avg(df, name) for name, df in dfs.items()}
             comp_avg = pd.DataFrame()
             comp_avg[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
             output_name_avg = f'avg_{output_name}'
-            dump_comp(dfs_avg, comp_avg, dir_name, sub_dir, output_name_avg, exp_name)
+            dump_comp(dfs_avg, comp_avg, dir_name, sub_dir, output_name_avg, exp_name, min_total)
 
         if dump_all:
             comp_all = pd.DataFrame()
             comp_all[KEY_INSTANCE_NAME] = dfs['euc'][KEY_INSTANCE_NAME]
             output_name_all = f'all_{output_name}'
-            dump_comp(dfs, comp_all, dir_name, sub_dir, output_name_all, exp_name)
+            dump_comp(dfs, comp_all, dir_name, sub_dir, output_name_all, exp_name, min_total)
 
 
-def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, dump_best=False):
+def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, min_total, dump_best=False):
     for name, df in dfs.items():
         if name != 'euc':
             comp[f'{name}_{KEY_COST}'] = df[KEY_COST] - dfs['euc'][KEY_COST]
@@ -148,26 +151,27 @@ def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, dump_best=F
             # percentage improvement compared to absolute euclidean cost
             comp[f'{name}_{KEY_COST}_%_euc'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST])
 
-    if dump_best:
-        comp['N/A3'] = ''
+    if not min_total:
+        if dump_best:
+            comp['N/A3'] = ''
+
+            for name, df in dfs.items():
+                if name != 'euc':
+                    # percentage improvement compared to how much euclidean is able to improve no decomp
+                    comp[f'{name}_{KEY_COST}_%_nod'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST], abs(comp['euc vs nod']))
+
+        # add an empty column b/t cost and cost_wait
+        comp[' '] = ''
 
         for name, df in dfs.items():
             if name != 'euc':
-                # percentage improvement compared to how much euclidean is able to improve no decomp
-                comp[f'{name}_{KEY_COST}_%_nod'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST], abs(comp['euc vs nod']))
+                comp[f'{name}_{KEY_COST_WAIT}'] = df[KEY_COST_WAIT] - dfs['euc'][KEY_COST_WAIT]
 
-    # add an empty column b/t cost and cost_wait
-    comp[' '] = ''
+        comp['N/A2'] = ''
 
-    for name, df in dfs.items():
-        if name != 'euc':
-            comp[f'{name}_{KEY_COST_WAIT}'] = df[KEY_COST_WAIT] - dfs['euc'][KEY_COST_WAIT]
-
-    comp['N/A2'] = ''
-
-    for name, df in dfs.items():
-        if name != 'euc':
-            comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs['euc'][KEY_COST_WAIT])
+        for name, df in dfs.items():
+            if name != 'euc':
+                comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs['euc'][KEY_COST_WAIT])
 
     dir_path = os.path.join(dir_name, sub_dir)
     helpers.make_dirs(dir_path)
@@ -294,34 +298,31 @@ def conditional_formatting(dir_name, sub_dir, file_name):
 
 
 if __name__ == '__main__':
-    '''MODIFY: experiment names and dir name; must match file_name in experiments.py'''
+    '''STEP 2'''
+    '''MODIFY: experiment names and dir name'''
 
-    exp_names = [
-        'k_medoids_C1',
-        'k_medoids_C2',
-        'k_medoids_R1',
-        'k_medoids_R2',
-        'k_medoids_RC1',
-        'k_medoids_RC2',
-        # 'k_medoids_focus_C1',
-        # 'k_medoids_focus_C2',
-        # 'k_medoids_focus_R1',
-        # 'k_medoids_focus_R2',
-        # 'k_medoids_focus_RC1',
-        # 'k_medoids_focus_RC2',
-    ]
-
-    dir_name = 'E13'
+    dir_name = 'E31'
+    min_total = False
     print_num_subprobs = False # dump_best must be True for this to be meaningful
     dump_best = True
-    dump_avg = True
-    dump_all = True
+    dump_avg = False
+    dump_all = False
+
+    exp = 'k_medoids'
+    exp_names = [
+        f'{exp}_C1',
+        f'{exp}_C2',
+        f'{exp}_R1',
+        f'{exp}_R2',
+        f'{exp}_RC1',
+        f'{exp}_RC2',
+    ]
 
     '''END MODIFY'''
 
     sub_dir = file_name = f'{dir_name}_comparison'
 
-    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg, dump_all=dump_all)
+    dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg, dump_all=dump_all, min_total=min_total)
     if print_num_subprobs:
         print(num_subprobs_best_found.tolist())
         for i in range(num_subprobs_best_found.min(), num_subprobs_best_found.max() + 1, 1):

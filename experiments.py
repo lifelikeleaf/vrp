@@ -8,10 +8,7 @@ import cvrplib
 import pandas as pd
 
 from vrp.decomp.decomposition import DecompositionRunner
-from vrp.decomp.decomposers import (
-    KMedoidsDecomposer,
-    HierarchicalDecomposer,
-)
+from vrp.decomp.decomposers import KMedoidsDecomposer
 from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 import vrp.decomp.helpers as helpers
 from vrp.decomp.logger import logger
@@ -22,7 +19,7 @@ logger = logger.getChild(__name__)
 
 
 class ExperimentRunner:
-    def __init__(self, solver, benchmarks, num_clusters_range, repeat_n_times, output_file_name, allow_sleep=False) -> None:
+    def __init__(self, solver, benchmarks, num_clusters_range, repeat_n_times, output_file_name, sleep_time=10) -> None:
         self.benchmarks = benchmarks
         self.num_clusters_range = num_clusters_range
         self.repeat_n_times = repeat_n_times
@@ -30,7 +27,7 @@ class ExperimentRunner:
         self.experiments = []
         self.solver = solver
         self.decomp_runner = None
-        self.allow_sleep = allow_sleep
+        self.sleep_time = sleep_time
 
 
     def add_experiement(self, experiment):
@@ -51,8 +48,7 @@ class ExperimentRunner:
         # try clustering with diff number of clusters
         min_clusters, max_clusters = self.num_clusters_range
         for num_clusters in range(min_clusters, max_clusters + 1):
-            # optionally repeat n times bc clustering algorithm may find diff clusters on each run
-            # may no longer be needed after increasing clustering iterations
+            # repeat n times
             for i in range(self.repeat_n_times):
                 self.decomp_runner.decomposer.num_clusters = num_clusters
                 solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
@@ -98,13 +94,12 @@ class ExperimentRunner:
                 }
                 helpers.write_to_json(json_data, self.output_file_name)
 
-                if self.allow_sleep:
+                if self.repeat_n_times > 1 or (max_clusters - min_clusters) > 0:
                     # let the CPU take a break after each iteration (per repetition per cluster)
-                    helpers.sleep(10, __name__)
+                    helpers.sleep(self.sleep_time, __name__)
 
-        if self.allow_sleep:
-            # break after each experiment
-            helpers.sleep(60, __name__)
+        # break after each experiment
+        helpers.sleep(self.sleep_time, __name__)
 
 
     def run_experiments(self, inst):
@@ -192,6 +187,7 @@ if __name__ == "__main__":
         return sample_benchmarks
 
 
+    '''STEP 1'''
     def k_medoids():
         # for each instance, run a set of experiments
         # each experiment is a diff way to decompose the instance
@@ -204,79 +200,56 @@ if __name__ == "__main__":
         experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
 
         '''temporal weight based'''
-        '''v2.2 100/100%'''
+        '''lambda = 100%'''
         # dist_matrix_func = DM.v2_2_vectorized
         # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
 
-        '''v2.3 50/50%'''
-        # dist_matrix_func = DM.v2_3_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
+        '''lambda = 50%'''
+        dist_matrix_func = DM.v2_3_vectorized
+        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
-        '''v2.5 15/15%'''
-        # dist_matrix_func = DM.v2_5_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothMinWait_{ext}', use_overlap=True, use_gap=True, minimize_wait_time=True, normalize=True))
+        '''lambda = 15%'''
+        dist_matrix_func = DM.v2_5_vectorized
+        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
-        # '''v2.8 20/20%'''
-        # dist_matrix_func = DM.v2_8_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
+        '''lambda = 20%'''
+        dist_matrix_func = DM.v2_8_vectorized
+        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
-        # '''v2.9 10/10%'''
-        # dist_matrix_func = DM.v2_9_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapMinWait_{ext}', use_gap=True, minimize_wait_time=True, normalize=True))
+        '''lambda = 10%'''
+        dist_matrix_func = DM.v2_9_vectorized
+        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
         return experiments
 
 
+    '''STEP 2'''
     '''parameters for experiments'''
-
-    '''Basis'''
-    experiments_only = False # True if only run experiments, don't run Basis
-
-    allow_sleep = True
     num_clusters_range = (10, 10) # inclusive
     repeat_n_times = 1
-    time_limit = 10 # use >=20 for HGS, <20 (5, 10, 15) even decomp can't find feasible solution for R1_10_1
-    output_dir_name = 'E17_ortools_Qi'
+    time_limit = 10 # use >=20 for HGS, <20 even decomp can't find feasible solution for R1_10_1
+    output_dir_name = 'E31'
+    sleep_time = 15
+
+    experiments_only = False # True if only run experiments, don't run Basis
     experiments = k_medoids
     benchmark_dir_name = HG
     input = {
-        # SOLOMON
-        # 'C1': C1,
-        # 'C2': C2,
-        # 'R1': R1,
-        # 'R2': R2,
-        # 'RC1': RC1,
-        # 'RC2': RC2,
-
-        # HG focus group
-        # 'focus_C1': FOCUS_GROUP_C1,
-        # 'focus_C2': FOCUS_GROUP_C2,
-        # 'focus_R1': FOCUS_GROUP_R1,
-        # 'focus_R2': FOCUS_GROUP_R2,
-        # 'focus_RC1': FOCUS_GROUP_RC1,
-        # 'focus_RC2': FOCUS_GROUP_RC2,
-
         # HG all
         'C1': C1_10,
         'C2': C2_10,
@@ -292,12 +265,14 @@ if __name__ == "__main__":
     '''parameters for experiments'''
 
 
-    '''only considers driving time in OF'''
+    '''STEP 3'''
+    '''Min driving time'''
     # solver = HgsSolverWrapper(time_limit)
-    # solver = GortoolsSolverWrapper(time_limit, wait_time_in_obj_func=False)
+    solver = GortoolsSolverWrapper(time_limit, min_total=False)
 
-    '''considers total time (incl. wait time) in OF'''
-    solver = GortoolsSolverWrapper(time_limit)
+    '''Min total time'''
+    # solver = GortoolsSolverWrapper(time_limit)
+
 
     for name, benchmark_class in input.items():
         helpers.make_dirs(output_dir_name)
@@ -307,7 +282,7 @@ if __name__ == "__main__":
         # e.g. [(['C101', 'C102', 'C103'], SOLOMON)]
         benchmarks = [(benchmark_class, benchmark_dir_name)]
 
-        runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name, allow_sleep=allow_sleep)
+        runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name, sleep_time=sleep_time)
         runner.add_experiements(experiments())
 
         try:
