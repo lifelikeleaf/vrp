@@ -1,9 +1,9 @@
 # misc
 .DS_Store
 __pycache__/
-hgs/
 *.xlsx
 *.json
+*.png
 
 # Built application files
 *.apk
