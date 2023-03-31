@@ -558,6 +558,77 @@ def _dist_matrix_symmetric_normalizable(feature_vectors, decomposer, pairwise_di
     return dist_matrix
 
 
+def _get_transformed_tw(nodes, euclidean_dists):
+    start_times = nodes[:, 2]
+    end_times = nodes[:, 3]
+    service_times = nodes[:, 4]
+
+    transformed_start_times = start_times + service_times + euclidean_dists
+    transformed_end_times = end_times + service_times + euclidean_dists
+
+    return transformed_start_times, transformed_end_times
+
+
+def _transformed_tw_temporal_dists_directional(nodes_i, nodes_j, euclidean_dists, planning_horizon):
+    start_times_i, end_times_i = _get_transformed_tw(nodes_i, euclidean_dists)
+    start_times_j = nodes_j[:, 2]
+    end_times_j = nodes_j[:, 3]
+
+    overlaps_or_gaps = np.minimum(end_times_i, end_times_j) - np.maximum(start_times_i, start_times_j)
+
+    # conveniently, overlap is positive, gap is negative
+    # temporal_dist with overlap should be smaller and with gap larger
+    temporal_dists = planning_horizon - overlaps_or_gaps
+
+    return temporal_dists
+
+
+@helpers.log_run_time
+def _dist_matrix_transformed_tw_vectorized(fv, decomposer):
+    n = len(fv)
+
+    # upper triangle indices of an n x n symmetric matrix
+    # skip the main diagonal (k=1) bc dist to self is zero
+    i, j = np.triu_indices(n, k=1)
+
+    # all unique pairwise nodes
+    nodes_i = fv[i]
+    nodes_j = fv[j]
+
+    x_coords_i = nodes_i[:, 0]
+    y_coords_i = nodes_i[:, 1]
+    x_coords_j = nodes_j[:, 0]
+    y_coords_j = nodes_j[:, 1]
+    euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2)
+
+    start = np.asarray(list(zip(*fv)))[2]
+    end = np.asarray(list(zip(*fv)))[3]
+    planning_horizon = end.max() - start.min()
+
+    temporal_dists_ij = _transformed_tw_temporal_dists_directional(nodes_i, nodes_j, euclidean_dists, planning_horizon)
+    temporal_dists_ji = _transformed_tw_temporal_dists_directional(nodes_j, nodes_i, euclidean_dists, planning_horizon)
+
+    temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
+    # temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
+
+    # temporal_matrix = np.zeros((n, n))
+    # temporal_matrix[i, j] = temporal_dists
+    # temporal_matrix += temporal_matrix.T
+    # print('temporal matrix:')
+    # print(temporal_matrix.round(2))
+    # print()
+
+    spatiotemporal_dists = helpers.normalize_matrix(euclidean_dists) + helpers.normalize_matrix(temporal_dists)
+
+    dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
+    # fill the upper triangle
+    dist_matrix[i, j] = spatiotemporal_dists
+    # fill the lower triangle
+    dist_matrix += dist_matrix.T
+
+    return dist_matrix
+
+
 @helpers.log_run_time
 def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
     n = len(fv)
