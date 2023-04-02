@@ -399,6 +399,39 @@ def plot_instance(dir_name, instance_name):
     return fig
 
 
+# TODO: tw distribution per cluster?
+def plot_tw(dir_name, instance_name):
+    inst, _ = read_instance(dir_name, instance_name)
+    start_times = np.asarray(inst.earliest[1:])
+    end_times = np.asarray(inst.latest[1:])
+    tws = list(zip(start_times, end_times))
+    # sort by start time
+    tws.sort(key=lambda tw: tw[0])
+    fig, ax = plt.subplots()
+    for i, tw in enumerate(tws):
+        ax.plot(tw, [i, i])
+    # plt.show()
+    fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'tw')
+    fig.savefig(fname)
+    plt.close()
+
+
+def plot_tws():
+    dir_name = HG
+    input = {
+        # 'test': ['RC2_10_8'],
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
+    }
+    for val in input.values():
+        for instance_name in val:
+            plot_tw(dir_name, instance_name)
+
+
 def plot_dist_matrix():
     dir_name = HG
     instance_name = 'RC2_2_1'
@@ -855,4 +888,5 @@ if __name__ == '__main__':
     # analyze_overlap_gap_effect()
     # test_antiderivative_vs_quad()
     # test_dist_matrix_qi_2012(use_mock_data=True)
-    validate_routes()
+    # validate_routes()
+    plot_tws()

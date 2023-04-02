@@ -225,6 +225,13 @@ def make_dirs(dir_name):
     os.makedirs(os.path.dirname(dir_name), exist_ok=True)
 
 
+def create_full_path_file_name(filename, *path_dir_names):
+    path = os.path.join(*path_dir_names)
+    make_dirs(path)
+    fname = os.path.join(path, filename)
+    return fname
+
+
 class FV():
     """lru_cache requires function arguments to be hashable.
     Wrap a feature_vectors NDArray inside a user defined class
