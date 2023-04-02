@@ -541,8 +541,9 @@ def plot_clusters():
     plt.show()
 
 
-def plot_routes():
+def calc_omega_factor():
     # TODO
+    '''Van Landeghem, H. R. G. (1988)'''
     pass
 
 

@@ -83,6 +83,18 @@ def qi_2012_vectorized(feature_vectors, decomposer=None):
     return _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
 
 
+def v3_1_vectorized(feature_vectors, decomposer):
+    return _dist_matrix_transformed_tw_vectorized(feature_vectors, decomposer)
+
+
+def v4_1_vectorized(feature_vectors, decomposer):
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v4_1)
+
+
+def v4_2_vectorized(feature_vectors, decomposer):
+    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v4_2)
+
+
 ''' DEPRECATED: use vectorized versions instead'''
 
 def v1(feature_vectors, decomposer):
@@ -267,6 +279,45 @@ def _vectorized_dist_v2_9(constituents, decomposer):
 def _vectorized_dist_v2_10(constituents, decomposer):
     '''limit weight up to 5%'''
     return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.05, gap_lambda=0.05)
+
+
+def _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=1, gap_lambda=1):
+    '''tw relative to the planning horizon, overlap relative to tw'''
+    relative_overlaps = constituents['relative_overlap']
+    relative_tw_widths = constituents['relative_tw_width']
+    gaps = constituents['gap']
+    euclidean_dists = constituents['euclidean_dist']
+
+    temporal_weights = 0
+    spatial_temporal_dists = euclidean_dists
+    if decomposer.use_overlap:
+        # temporal_weight = relative_overlap * (1 - relative_tw_width) * lambda
+        temporal_weights = relative_overlaps * (1 - relative_tw_widths) * overlap_lambda
+        spatial_temporal_dists *= (1 + temporal_weights)
+
+    # this is safe bc overlap and gap are by definition mutually exclusive,
+    # i.e. a pair of nodes can either have a TW overlap or a TW gap,
+    # or neither, but not both.
+    if decomposer.use_gap:
+        # temporal_weight = gap / (gap + euclidean_dist) * lambda
+        temporal_weights = np.divide(
+            gaps,
+            (gaps + euclidean_dists),
+            out=np.zeros(gaps.shape),
+            where=((gaps + euclidean_dists) != 0)
+        ) * gap_lambda
+
+        # ignoring service time,
+        # if gap - euclidean dist > 0, then there's a guaranteed wait time, which is penalized
+        # otherwise the gap is interpreted as a flexibility for routing, which is encouraged
+        temporal_weights = np.where(gaps - euclidean_dists > 0, temporal_weights, -1 * temporal_weights)
+        spatial_temporal_dists *= (1 + temporal_weights)
+
+    return spatial_temporal_dists
+
+
+def _vectorized_dist_v4_2(constituents, decomposer):
+    return _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=0.5, gap_lambda=0.5)
 
 
 def _vectorized_euclidean_dist(constituents, decomposer):
@@ -577,14 +628,42 @@ def _transformed_tw_temporal_dists_directional(nodes_i, nodes_j, euclidean_dists
     overlaps_or_gaps = np.minimum(end_times_i, end_times_j) - np.maximum(start_times_i, start_times_j)
 
     # conveniently, overlap is positive, gap is negative
-    # temporal_dist with overlap should be smaller and with gap larger
+    # with transformed tw, overlap means flexibility
+    # gap means either early arrival or late arrival
+    # so temporal_dist with overlap should be smaller and with gap larger
     temporal_dists = planning_horizon - overlaps_or_gaps
 
     return temporal_dists
 
 
+def _transformed_tw_temporal_weights_directional(nodes_i, nodes_j, euclidean_dists, planning_horizon, decomposer):
+    start_times_i, end_times_i = _get_transformed_tw(nodes_i, euclidean_dists)
+    start_times_j = nodes_j[:, 2]
+    end_times_j = nodes_j[:, 3]
+
+    overlaps_or_gaps = np.minimum(end_times_i, end_times_j) - np.maximum(start_times_i, start_times_j)
+    # overlaps = np.where(overlaps_or_gaps > 0, overlaps_or_gaps, 0)
+    # gaps = np.where(overlaps_or_gaps < 0, overlaps_or_gaps, 0)
+
+    # savings = 0
+    # if decomposer.use_overlap and decomposer.use_gap:
+    #     savings = overlaps_or_gaps
+    # elif decomposer.use_overlap:
+    #     savings = overlaps
+    # elif decomposer.use_gap:
+    #     savings = gaps
+
+    # conveniently, overlap is positive, gap is negative
+    # with transformed tw, overlap means flexibility
+    # gap means either early arrival or late arrival
+    temporal_weights = overlaps_or_gaps / planning_horizon
+
+    return temporal_weights
+
+
 @helpers.log_run_time
-def _dist_matrix_transformed_tw_vectorized(fv, decomposer):
+def _dist_matrix_transformed_tw_vectorized(feature_vectors, decomposer):
+    fv = feature_vectors.data
     n = len(fv)
 
     # upper triangle indices of an n x n symmetric matrix
@@ -607,9 +686,14 @@ def _dist_matrix_transformed_tw_vectorized(fv, decomposer):
 
     temporal_dists_ij = _transformed_tw_temporal_dists_directional(nodes_i, nodes_j, euclidean_dists, planning_horizon)
     temporal_dists_ji = _transformed_tw_temporal_dists_directional(nodes_j, nodes_i, euclidean_dists, planning_horizon)
+    # temporal_weights_ij = _transformed_tw_temporal_weights_directional(nodes_i, nodes_j, euclidean_dists, planning_horizon, decomposer)
+    # temporal_weights_ji = _transformed_tw_temporal_weights_directional(nodes_j, nodes_i, euclidean_dists, planning_horizon, decomposer)
 
     temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
     # temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
+    # temporal_dists = temporal_dists_ij + temporal_dists_ji
+    # temporal_weights = np.maximum(temporal_weights_ij, temporal_weights_ji)
+    # temporal_weights = np.minimum(temporal_weights_ij, temporal_weights_ji)
 
     # temporal_matrix = np.zeros((n, n))
     # temporal_matrix[i, j] = temporal_dists
@@ -618,11 +702,12 @@ def _dist_matrix_transformed_tw_vectorized(fv, decomposer):
     # print(temporal_matrix.round(2))
     # print()
 
-    spatiotemporal_dists = helpers.normalize_matrix(euclidean_dists) + helpers.normalize_matrix(temporal_dists)
+    spatial_temporal_dists = helpers.normalize_matrix(euclidean_dists) + helpers.normalize_matrix(temporal_dists)
+    # spatial_temporal_dists = euclidean_dists * (1 - temporal_weights)
 
     dist_matrix = np.zeros((n, n)) # n x n matrix of zeros
     # fill the upper triangle
-    dist_matrix[i, j] = spatiotemporal_dists
+    dist_matrix[i, j] = spatial_temporal_dists
     # fill the lower triangle
     dist_matrix += dist_matrix.T
 
@@ -755,7 +840,7 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
 def _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_dist_callable):
     fv = feature_vectors.data
 
-    as_matrix = True
+    as_matrix = True # get constituents as a 2-D matrix or 1-D array
     constituents = _get_constituents_vectorized(fv, decomposer, as_matrix=as_matrix)
 
     if as_matrix:
@@ -820,6 +905,7 @@ def _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
     '''
     temporal_dists = np.maximum(temporal_dists_ij, temporal_dists_ji)
     # temporal_dists = np.minimum(temporal_dists_ij, temporal_dists_ji)
+    # temporal_dists = temporal_dists_ij + temporal_dists_ji
 
     # temporal_matrix = np.zeros((n, n))
     # temporal_matrix[i, j] = temporal_dists
@@ -864,7 +950,7 @@ def _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_
     def def_integral(antiderivative, lower_limit, upper_limit, **kwargs):
         return antiderivative(upper_limit, **kwargs) - antiderivative(lower_limit, **kwargs)
 
-    # x=t' < c
+    # x=t' < c (penalize early arrival, i.e. wait time)
     def k2_integrand(x, k1, k2, c, d):
         return k2 * x + k1 * d - (k1 + k2) * c
 
@@ -879,7 +965,7 @@ def _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_
         k1=k1, k2=k2, c=start_times_j, d=end_times_j
     )
 
-    # x=t' in [c, d]
+    # x=t' in [c, d] (reward savings)
     def k1_integrand(x, k1, d):
         return -k1 * x + k1 * d
 
@@ -894,7 +980,7 @@ def _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_
         k1=k1, d=end_times_j
     )
 
-    # x=t' > d
+    # x=t' > d (penalize late arrival)
     def k3_integrand(x, k3, d):
         return -k3 * x + k3 * d
 
@@ -910,6 +996,10 @@ def _qi_2012_temporal_dists_directional(nodes_i, nodes_j, k1, k2, k3, euclidean_
     )
 
     temporal_dists = k1 * A - (k1_result + k2_result + k3_result) / (arrival_times_j_high - arrival_times_j_low)
+    '''without penalizing early arrival'''
+    # temporal_dists = k1 * A - (k1_result + k1 * tw_widths_j + k3_result) / (arrival_times_j_high - arrival_times_j_low)
+    '''without penalizing late arrival'''
+    # temporal_dists = k1 * A - (k1_result + k2_result) / (arrival_times_j_high - arrival_times_j_low)
 
     return temporal_dists
 
