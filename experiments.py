@@ -49,16 +49,15 @@ class ExperimentRunner:
         min_clusters, max_clusters = self.num_clusters_range
         for num_clusters in range(min_clusters, max_clusters + 1):
             # repeat n times
-            for i in range(self.repeat_n_times):
+            for i in range(1, self.repeat_n_times + 1):
                 self.decomp_runner.decomposer.num_clusters = num_clusters
                 solution = self.decomp_runner.run(in_parallel=True, num_workers=num_clusters)
                 cost = solution.metrics[METRIC_COST]
-                cost_wait = cost + solution.metrics[METRIC_WAIT_TIME]
                 routes = solution.routes
 
                 sol_header = f'Solution for experiment: {experiment_name} on instance {instance_name}'
                 logger.info(f"------ {sol_header} ------")
-                logger.info(f"Decomp cost: {cost} (include wait time cost: {cost_wait}) with "
+                logger.info(f"Decomp cost: {cost} with "
                             f"{num_clusters} clusters and {len(routes)} routes; iteration {i}")
                 logger.info('')
 
@@ -69,7 +68,6 @@ class ExperimentRunner:
                     KEY_NUM_SUBPROBS: [num_clusters],
                     KEY_NUM_ROUTES: [len(routes)],
                     KEY_COST: [cost],
-                    KEY_COST_WAIT: [cost_wait],
                 }
                 df = pd.DataFrame(excel_data)
                 helpers.write_to_excel(df, self.output_file_name, sheet_name=experiment_name)
@@ -130,8 +128,7 @@ class ExperimentRunner:
         logger.info('')
         solution = self.solver.solve(inst)
         cost = solution.metrics[METRIC_COST]
-        cost_wait = cost + solution.metrics[METRIC_WAIT_TIME]
-        logger.info(f'No decomp cost: {cost} (include wait time cost: {cost_wait}) with {len(solution.routes)} routes')
+        logger.info(f'No decomp cost: {cost} with {len(solution.routes)} routes')
         json_data = {
             KEY_INSTANCE_NAME: inst.extra['name'],
             KEY_EXPERIMENT_NAME: 'No decomp',
@@ -139,7 +136,7 @@ class ExperimentRunner:
             KEY_COST: cost,
         }
         helpers.write_to_json(json_data, self.output_file_name)
-        return cost, cost_wait, solution.routes
+        return cost, solution.routes
 
 
     def run(self, experiments_only=False):
@@ -149,7 +146,7 @@ class ExperimentRunner:
                 converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
 
                 if not experiments_only:
-                    no_decomp_cost, no_decomp_cost_wait, no_decomp_routes = self.get_no_decomp_solution(converted_inst)
+                    no_decomp_cost, no_decomp_routes = self.get_no_decomp_solution(converted_inst)
 
                     # prepare data to be written to excel
                     excel_data = {
@@ -158,7 +155,6 @@ class ExperimentRunner:
                         f'{KEY_NUM_ROUTES}_NO_decomp': [len(no_decomp_routes)],
                         f'{KEY_COST}_BK': [bk_sol.cost],
                         f'{KEY_COST}_NO_decomp': [no_decomp_cost],
-                        f'{KEY_COST_WAIT}_NO_decomp': [no_decomp_cost_wait],
                     }
 
                     # write base reference data to excel in its own tab
@@ -187,7 +183,7 @@ if __name__ == "__main__":
         return sample_benchmarks
 
 
-    '''STEP 1'''
+    '''STEP 1/3'''
     def k_medoids():
         # for each instance, run a set of experiments
         # each experiment is a diff way to decompose the instance
@@ -197,53 +193,25 @@ if __name__ == "__main__":
         experiments.append(KMedoidsDecomposer(DM.euclidean_vectorized, name='euclidean'))
 
         '''Qi et al 2012'''
-        experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
+        # experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
 
         '''temporal weight based'''
         '''lambda = 100%'''
-        # dist_matrix_func = DM.v2_2_vectorized
-        # ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+        dist_matrix_func = DM.v2_2_vectorized
+        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
         # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-        '''lambda = 50%'''
-        dist_matrix_func = DM.v2_3_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-        '''lambda = 15%'''
-        dist_matrix_func = DM.v2_5_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-        '''lambda = 20%'''
-        dist_matrix_func = DM.v2_8_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-        '''lambda = 10%'''
-        dist_matrix_func = DM.v2_9_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
         experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
         return experiments
 
 
-    '''STEP 2'''
+    '''STEP 2/3'''
     '''parameters for experiments'''
     num_clusters_range = (10, 10) # inclusive
     repeat_n_times = 1
     time_limit = 10 # use >=20 for HGS, <20 even decomp can't find feasible solution for R1_10_1
-    output_dir_name = 'E31'
+    output_dir_name = 'E_name'
     sleep_time = 15
 
     experiments_only = False # True if only run experiments, don't run Basis
@@ -265,13 +233,13 @@ if __name__ == "__main__":
     '''parameters for experiments'''
 
 
-    '''STEP 3'''
-    '''Min driving time'''
+    '''STEP 3/3'''
+    '''OF = min driving time'''
     # solver = HgsSolverWrapper(time_limit)
-    solver = GortoolsSolverWrapper(time_limit, min_total=False)
+    # solver = GortoolsSolverWrapper(time_limit, min_total=False)
 
-    '''Min total time'''
-    # solver = GortoolsSolverWrapper(time_limit)
+    '''OF = min total time'''
+    solver = GortoolsSolverWrapper(time_limit)
 
 
     for name, benchmark_class in input.items():

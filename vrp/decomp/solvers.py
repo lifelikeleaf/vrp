@@ -110,7 +110,6 @@ class HgsSolverWrapper(AbstractSolverWrapper):
             # no feasible solution found
             metrics = {
                 METRIC_COST: infinity,
-                METRIC_WAIT_TIME: infinity,
             }
             # when called on decomposed instances, if one single
             # instance finds no feasible solution, aggregated cost will
@@ -125,7 +124,6 @@ class HgsSolverWrapper(AbstractSolverWrapper):
         # see bindings.cpp
         metrics = {
             METRIC_COST: solution.cost,
-            METRIC_WAIT_TIME: solution.waitTime,
         }
         sol = VRPSolution(solution.routes, metrics)
         return sol
@@ -296,10 +294,10 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
         time_dimension = routing.GetDimensionOrDie(DIMENSION_TIME)
 
         if self.min_total:
-            logger.info('Considers total time (wait time included)')
+            logger.info('OF = min total time (wait time included)')
             time_dimension.SetSpanCostCoefficientForAllVehicles(1)
         else:
-            logger.info('Only considers driving time')
+            logger.info('OF = min driving time')
             routing.SetArcCostEvaluatorOfAllVehicles(time_callback_index)
 
         # Add hard time window constraints, shifted by service time so that
@@ -346,12 +344,6 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
             cost = solution.ObjectiveValue() - sum(service_time)
             metrics = {
                 METRIC_COST: cost,
-                # wait time is expected to be included in objective function,
-                # so wait time alone is not calculated here, but can be
-                # calculated downstream based on routes. Include it here in
-                # `metrics` for compatibility with existing ExperimentRunner,
-                # where it's expected.
-                METRIC_WAIT_TIME: 0,
             }
             routes = []
             route_starts = []
@@ -382,7 +374,6 @@ class GortoolsSolverWrapper(AbstractSolverWrapper):
             # no feasible solution found
             metrics = {
                 METRIC_COST: infinity,
-                METRIC_WAIT_TIME: infinity,
             }
             sol = VRPSolution([], metrics)
 

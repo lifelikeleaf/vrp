@@ -7,7 +7,6 @@ HG = 'Vrp-Set-HG' # n=[200, 400, 600, 800, 1000]; 60 instances each
 
 # metrics and extra data returned by the solver
 METRIC_COST = 'cost'
-METRIC_WAIT_TIME = 'wait_time'
 EXTRA_ROUTE_STARTS = 'route_starts'
 
 # ortools dimension names
@@ -16,7 +15,6 @@ DIMENSION_CAPACITY = 'capacity'
 
 # keys for data output
 KEY_COST = 'cost'
-KEY_COST_WAIT = 'cost_wait' # cost + wait time (post-routing)
 KEY_NUM_ROUTES = 'num_routes'
 KEY_INSTANCE_NAME = 'instance_name'
 KEY_ITERATION = 'iteration'
@@ -34,10 +32,6 @@ SOLVER_STATUS = {
     4: 'ROUTING_INVALID: Model, model parameters, or flags are not valid.',
 }
 
-# run on a deterministic set of instances rather than a random sample
-# so that new experiments can be compared to old ones w/o rerunning old ones
-# focus on the 1k nodes benchmark where decomp is important
-# But use Solomon 100-node benchmark first for faster experiments
 '''Solomon 100-node benchmarks'''
 ## geographically clustered
 ## narrow TWs
@@ -51,7 +45,7 @@ R2 = ['R201', 'R202', 'R203', 'R204', 'R205', 'R206', 'R207', 'R208', 'R209', 'R
 RC1 = ['RC101', 'RC102', 'RC103', 'RC104', 'RC105', 'RC106', 'RC107', 'RC108']
 RC2 = ['RC201', 'RC202', 'RC203', 'RC204', 'RC205', 'RC206', 'RC207', 'RC208']
 
-'''HG 1k-node benchmark'''
+'''HG 1k-node benchmarks'''
 C1_10 = ['C1_10_1', 'C1_10_2', 'C1_10_3', 'C1_10_4', 'C1_10_5', 'C1_10_6', 'C1_10_7', 'C1_10_8', 'C1_10_9', 'C1_10_10']
 C2_10 = ['C2_10_1', 'C2_10_2', 'C2_10_3', 'C2_10_4', 'C2_10_5', 'C2_10_6', 'C2_10_7', 'C2_10_8', 'C2_10_9', 'C2_10_10']
 R1_10 = ['R1_10_1', 'R1_10_2', 'R1_10_3', 'R1_10_4', 'R1_10_5', 'R1_10_6', 'R1_10_7', 'R1_10_8', 'R1_10_9', 'R1_10_10']

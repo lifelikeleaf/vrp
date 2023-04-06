@@ -156,7 +156,7 @@ class VRPSolution:
         A list of routes.
 
     metrics: dict[str, Number]
-        A dict of aggregatable metrics, e.g. cost, wait time.
+        A dict of aggregatable metrics, e.g. cost.
 
     Optional:
         extra: dict[list]
@@ -232,7 +232,7 @@ class AbstractSolverWrapper(ABC):
         -------
         solution: `VRPSolution`
             A VRP solution object containing routes, aggregatable metrics
-            (e.g. cost, wait time) and optional extra data.
+            (e.g. cost) and optional extra data.
 
         """
         pass
@@ -308,7 +308,7 @@ class DecompositionRunner:
         -------
         solution: `VRPSolution`
             A VRP solution object containing routes, aggregatable metrics
-            (e.g. cost, wait time) and optional extra data.
+            (e.g. cost) and optional extra data.
 
         """
         self.decomposer.clusters = self.decomposer.decompose(self.inst)

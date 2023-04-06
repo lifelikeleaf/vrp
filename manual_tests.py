@@ -702,7 +702,6 @@ def test_framework():
 
 def print_solution(solution, converted_inst, verbose=False):
     cost = solution.metrics[METRIC_COST]
-    wait_time = solution.metrics[METRIC_WAIT_TIME]
     routes = solution.routes
     extra = solution.extra
 
@@ -722,7 +721,6 @@ def print_solution(solution, converted_inst, verbose=False):
 
     print(f'cost from solver: {cost}')
     print(f'computed total travel time: {total_time}')
-    print(f'wait time from solver: {wait_time}')
     print(f'computed total wait time: {total_wait_time}')
     print(f'extra: {extra}')
     print(f'num routes: {len(routes)}')

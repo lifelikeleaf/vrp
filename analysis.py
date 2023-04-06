@@ -26,18 +26,16 @@ def get_best_found(df, name) -> pd.DataFrame:
     #.reset_index(drop=True)
 
     # a diff approach but same result
-    cost_wait = df.sort_values(by=[KEY_COST_WAIT]) \
-        .groupby(by=KEY_INSTANCE_NAME).head(1).sort_index() \
-        .loc[:, [KEY_INSTANCE_NAME, KEY_NUM_SUBPROBS, KEY_COST_WAIT]]
+    # cost_wait = df.sort_values(by=[KEY_COST_WAIT]) \
+    #     .groupby(by=KEY_INSTANCE_NAME).head(1).sort_index() \
+    #     .loc[:, [KEY_INSTANCE_NAME, KEY_NUM_SUBPROBS, KEY_COST_WAIT]]
 
-    best_found = pd.merge(cost, cost_wait, on=[KEY_INSTANCE_NAME], suffixes=[f'_{KEY_COST}', f'_{KEY_COST_WAIT}'])
+    # best_found = pd.merge(cost, cost_wait, on=[KEY_INSTANCE_NAME], suffixes=[f'_{KEY_COST}', f'_{KEY_COST_WAIT}'])
 
-    # print(f'\n{name}')
-    # print(best_found)
     global num_subprobs_best_found
-    num_subprobs_best_found = np.append(num_subprobs_best_found, best_found[f'{KEY_NUM_SUBPROBS}_{KEY_COST}'].values)
+    num_subprobs_best_found = np.append(num_subprobs_best_found, cost[f'{KEY_NUM_SUBPROBS}'].values)
 
-    return best_found
+    return cost
 
 
 def get_avg(df, name):
@@ -57,7 +55,7 @@ def get_avg(df, name):
     # in comparision code, where comp['col_name'] = df[KEY_COST] - dfs['euc'][KEY_COST]
     # results in comp having NaN as the result of the column arithmitic
     avg = df.groupby(by=KEY_INSTANCE_NAME, as_index=False).mean() \
-        .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST, KEY_COST_WAIT]] \
+        .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST]] \
         .reset_index(drop=True)
 
     # print(f'\n{name}')
@@ -94,18 +92,15 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
         )
 
 
-        '''STEP 1'''
+        '''STEP 1/2'''
         '''MODIFY: sheet names and df column names'''
 
-        dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
-        # dfs[f'OL_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'OL_v2_2')
-        # dfs[f'Gap_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'Gap_v2_2')
-        # dfs[f'Both_v2_2'] = pd.read_excel(input_file_name, sheet_name=f'Both_v2_2')
+        # dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
 
-        versions = ['v2_3', 'v2_5', 'v2_8', 'v2_9']
+        versions = ['v2_2']
         for v in versions:
-            dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
-            dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
+            # dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+            # dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
             dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
 
         '''END MODIFY'''
@@ -128,6 +123,10 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             dfs_avg = {name: get_avg(df, name) for name, df in dfs.items()}
             comp_avg = pd.DataFrame()
             comp_avg[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
+            comp_avg['euc vs nod'] = dfs_avg['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
+            comp_avg['euc vs nod %'] = percent_diff(dfs_avg['euc'][KEY_COST], basis[f'{KEY_COST}_NO_decomp'])
+            # add an empty column
+            comp_avg[''] = ''
             output_name_avg = f'avg_{output_name}'
             dump_comp(dfs_avg, comp_avg, dir_name, sub_dir, output_name_avg, exp_name, min_total)
 
@@ -151,27 +150,14 @@ def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, min_total, 
             # percentage improvement compared to absolute euclidean cost
             comp[f'{name}_{KEY_COST}_%_euc'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST])
 
-    if not min_total:
-        if dump_best:
+    if not min_total: # calc "% improvement of improvement" only if OF = min driving time
+        if dump_best or dump_avg:
             comp['N/A3'] = ''
 
             for name, df in dfs.items():
                 if name != 'euc':
                     # percentage improvement compared to how much euclidean is able to improve no decomp
                     comp[f'{name}_{KEY_COST}_%_nod'] = percent_diff(df[KEY_COST], dfs['euc'][KEY_COST], abs(comp['euc vs nod']))
-
-        # add an empty column b/t cost and cost_wait
-        comp[' '] = ''
-
-        for name, df in dfs.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST_WAIT}'] = df[KEY_COST_WAIT] - dfs['euc'][KEY_COST_WAIT]
-
-        comp['N/A2'] = ''
-
-        for name, df in dfs.items():
-            if name != 'euc':
-                comp[f'{name}_{KEY_COST_WAIT}_%'] = percent_diff(df[KEY_COST_WAIT], dfs['euc'][KEY_COST_WAIT])
 
     dir_path = os.path.join(dir_name, sub_dir)
     helpers.make_dirs(dir_path)
@@ -298,14 +284,14 @@ def conditional_formatting(dir_name, sub_dir, file_name):
 
 
 if __name__ == '__main__':
-    '''STEP 2'''
+    '''STEP 2/2'''
     '''MODIFY: experiment names and dir name'''
 
-    dir_name = 'E31'
-    min_total = False
+    dir_name = 'E_name'
+    min_total = True
     print_num_subprobs = False # dump_best must be True for this to be meaningful
-    dump_best = True
-    dump_avg = False
+    dump_best = False
+    dump_avg = True
     dump_all = False
 
     exp = 'k_medoids'
@@ -328,7 +314,7 @@ if __name__ == '__main__':
         for i in range(num_subprobs_best_found.min(), num_subprobs_best_found.max() + 1, 1):
             print(f'num_clusters={i}: {len(num_subprobs_best_found[num_subprobs_best_found == i])}')
         fig, ax = plt.subplots()
-        ax.hist(num_subprobs_best_found, bins=9, linewidth=0.5, edgecolor="white", align='mid', rwidth=0.8)
+        ax.hist(num_subprobs_best_found, bins=len(num_subprobs_best_found), linewidth=0.5, edgecolor="white", align='mid', rwidth=0.8)
         plt.show()
 
     if dump_best:
