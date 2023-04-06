@@ -87,7 +87,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         use_overlap=False,
         use_gap=False,
         normalize=False,
-        penalize_wait_time=False,
+        penalize_gap=False,
     ) -> None:
         """
         Parameters
@@ -111,10 +111,8 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
                 calculation, else False.
                 Default is False.
 
-            penalize_wait_time: bool
-                Whether to penalize wait time in objective function.
-                This flag should only be used if the underlying solver
-                considers wait time in its objective function.
+            penalize_gap: bool
+                Whether to penalize gap in objective function.
                 Default is False.
 
         """
@@ -123,7 +121,7 @@ class BaseDistanceMatrixBasedDecomposer(BaseDecomposer):
         self.use_overlap = use_overlap
         self.use_gap = use_gap
         self.normalize = normalize
-        self.penalize_wait_time = penalize_wait_time
+        self.penalize_gap = penalize_gap
 
 
 class KMeansDecomposer(BaseDecomposer):
@@ -156,8 +154,8 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
             logger.info('use overlap...')
         if self.use_gap:
             logger.info('use gap...')
-        if self.penalize_wait_time:
-            logger.info('penalize wait time...')
+        if self.penalize_gap:
+            logger.info('penalize gap...')
 
         # for 'precomputed' must pass the fit() method a distance matrix
         # instead of a feature vector
