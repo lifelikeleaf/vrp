@@ -1,5 +1,7 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+"""Quick and dirty manual tests. Some functions might not be up to date."""
+
 import os
 from collections import defaultdict
 import itertools
@@ -20,110 +22,6 @@ from vrp.decomp.decomposers import (
 from vrp.decomp.decomposition import DecompositionRunner, VRPInstance
 from vrp.decomp.constants import *
 import vrp.decomp.distance_matrices as DM
-
-
-TEST_DIR = 'Test'
-MARKER_SIZE = 10
-
-
-def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_start=None, verbose=False):
-    # `route` doesn't include depot; `inst` does include depot = 0
-
-    depot = 0
-    first_stop = route[0]
-    route_wait_time = 0
-    route_time = inst.nodes[depot].distances[first_stop]
-
-    # don't count the wait time at the first stop
-    # bc the vehicle could always be dispatched later from the depot
-    # so as to not incur any wait time and it doesn't affect feasibility
-    # NOTE: can't simply start at the earliest start time of the first node,
-    # bc the earliest start time of the first node could be 0 and we can't
-    # start at the first stop at time 0, bc we have to first travel from
-    # deopt to the first stop
-    if route_start is not None:
-        depot_departure_time = route_start
-    else:
-        depot_departure_time = inst.nodes[depot].start_time + inst.nodes[depot].service_time
-    # earliest possible arrival time at the first stop
-    # = earliest possible time to leave the depot + travel time from depot to the first stop
-    travel_time = inst.nodes[depot].distances[first_stop]
-    arrival_time = depot_departure_time + travel_time
-    # logical earliest start time at the first stop
-    # = the later of arrival time and TW earliest start time
-    tw_earliest_start = inst.nodes[first_stop].start_time
-    tw_latest_start = inst.nodes[first_stop].end_time
-    logical_earliest_start = max(arrival_time, tw_earliest_start)
-    # departure time from the first node
-    service_time = inst.nodes[first_stop].service_time
-    departure_time = logical_earliest_start + service_time
-
-    if verbose:
-        print(f'--------------- START ROUTE {route_num + 1} ---------------')
-        print(f'depot departure time = {depot_departure_time}')
-        print(f'travel time from depot to {first_stop} = {travel_time}', end=', ')
-        print(f'coords for deopot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})', end=', ')
-        print(f'coords for stop {first_stop} = ({inst.nodes[first_stop].x_coord}, {inst.nodes[first_stop].y_coord})')
-
-        print(f'stop = {first_stop}', end=', ')
-        print(f'arrival time = {arrival_time}', end=', ')
-        print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
-        print(f'logical earliest start = {logical_earliest_start}', end=', ')
-        print(f'service time = {service_time}', end=', ')
-        print(f'departure time = {departure_time}')
-        print()
-
-    prev_stop = first_stop
-    for stop in route[1:]: # start counting wait time from the 2nd stop
-        travel_time = inst.nodes[prev_stop].distances[stop]
-        route_time += travel_time
-        tw_earliest_start = inst.nodes[stop].start_time
-        tw_latest_start = inst.nodes[stop].end_time
-        arrival_time = departure_time + travel_time
-        # Wait if we arrive before earliest start
-        wait_time = max(0, tw_earliest_start - arrival_time)
-        route_wait_time += wait_time
-        logical_earliest_start = arrival_time + wait_time
-        service_time = inst.nodes[stop].service_time
-        departure_time = logical_earliest_start + service_time
-
-        if verbose:
-            print(f'travel time from {prev_stop} to {stop} = {travel_time}', end=', ')
-            print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
-            print(f'coords for stop {stop} = ({inst.nodes[stop].x_coord}, {inst.nodes[stop].y_coord})')
-
-            print(f'stop = {stop}', end=', ')
-            print(f'arrival time = {arrival_time}', end=', ')
-            print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
-            print(f'wait time={wait_time}', end=', ')
-            print(f'logical earliest start = {logical_earliest_start}', end=', ')
-            print(f'service time = {service_time}', end=', ')
-            print(f'departure time = {departure_time}')
-            print()
-
-        prev_stop = stop
-
-    # back to the depot
-    travel_time = inst.nodes[prev_stop].distances[depot]
-    route_time += travel_time
-    arrival_time = departure_time + travel_time
-    tw_earliest_start = inst.nodes[depot].start_time
-    tw_latest_start = inst.nodes[depot].end_time
-
-    if verbose:
-        print(f'travel time from {prev_stop} to depot = {inst.nodes[prev_stop].distances[depot]}', end=', ')
-        print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
-        print(f'coords for depot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})')
-        print(f'return time to depot = {arrival_time}', end=', ')
-        print(f'depot TW = [{tw_earliest_start}, {tw_latest_start}]')
-        print()
-
-        print(f'route time = {route_time}')
-        print(f'route wait time = {route_wait_time}')
-        print(f'--------------- END ROUTE {route_num + 1} ---------------')
-        print()
-
-    return route_time, route_wait_time
 
 
 def list_benchmark_names():
@@ -174,13 +72,6 @@ def test_get_clusters():
     print(clusters)
 
 
-def read_instance(dir_name, instance_name):
-    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
-    inst = cvrplib.read(instance_path=f'{file_name}.txt')
-    converted_inst = helpers.convert_cvrplib_to_vrp_instance(inst)
-    return inst, converted_inst
-
-
 def summary_fv(to_excel=False, summary_to_excel=False):
     dir_name = SOLOMON
     names = ['C101']
@@ -189,7 +80,7 @@ def summary_fv(to_excel=False, summary_to_excel=False):
     norm = False
 
     for instance_name in names:
-        _, converted_inst = read_instance(dir_name, instance_name)
+        _, converted_inst = helpers.read_instance(dir_name, instance_name)
 
         feature_vectors = helpers.build_feature_vectors(converted_inst)
         df = pd.DataFrame(feature_vectors.data, columns=['x', 'y', 'start', 'end'])
@@ -223,7 +114,7 @@ def test_pairwise_distance():
     instance_name = 'C101'
     gap = False
 
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, use_overlap=True, use_gap=gap)
     feature_vectors = helpers.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
@@ -294,7 +185,7 @@ def test_get_constituents(to_excel=False):
     file_name = os.path.join(TEST_DIR, 'stats_matrix')
     norm = True
 
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=norm)
     feature_vectors = helpers.build_feature_vectors(converted_inst)
     fv = feature_vectors.data
@@ -340,7 +231,7 @@ def dist_matrix_to_excel():
     ext += '_gap' if gap else ''
     ext += '_norm' if norm else ''
 
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
     feature_vectors = helpers.build_feature_vectors(converted_inst)
     dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
@@ -381,166 +272,6 @@ def dist_matrix_to_excel():
     # print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
-def plot_instance(dir_name, instance_name):
-    # dir_name = HG
-    # instance_name = 'C1_2_1'
-    inst, _ = read_instance(dir_name, instance_name)
-    coords = np.asarray(inst.coordinates)
-    depot = coords[0]
-    x, y = zip(*coords[1:])
-    fig, ax = plt.subplots()
-    ax.scatter(depot[0], depot[1], label='depot', c='red', s=MARKER_SIZE)
-    ax.scatter(x, y, label='customers', s=MARKER_SIZE)
-    # ax.legend()
-    fig.legend(loc='upper left')
-    ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
-    # plt.show()
-    # print(plt.get_fignums())
-    return fig
-
-
-# TODO: tw distribution per cluster?
-def plot_tw(dir_name, instance_name):
-    inst, _ = read_instance(dir_name, instance_name)
-    start_times = np.asarray(inst.earliest[1:])
-    end_times = np.asarray(inst.latest[1:])
-    tws = list(zip(start_times, end_times))
-    # sort by start time
-    tws.sort(key=lambda tw: tw[0])
-    fig, ax = plt.subplots()
-    for i, tw in enumerate(tws):
-        ax.plot(tw, [i, i])
-    # plt.show()
-    fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'tw')
-    fig.savefig(fname)
-    plt.close()
-
-
-def plot_tws():
-    dir_name = HG
-    input = {
-        # 'test': ['RC2_10_8'],
-        'C1': C1_10,
-        'C2': C2_10,
-        'R1': R1_10,
-        'R2': R2_10,
-        'RC1': RC1_10,
-        'RC2': RC2_10,
-    }
-    for val in input.values():
-        for instance_name in val:
-            plot_tw(dir_name, instance_name)
-
-
-def plot_dist_matrix():
-    dir_name = HG
-    instance_name = 'RC2_2_1'
-    path = os.path.join(TEST_DIR, 'plot', 'dist_matrix', instance_name)
-    helpers.make_dirs(path)
-    fig = plot_instance(dir_name, instance_name)
-    fname = os.path.join(path, 'coords')
-    fig.savefig(fname)
-
-    dms = [
-        # DM.euclidean_vectorized,
-        # DM.v1_vectorized,                     # doesn't work for gap bc it produced many 0s (division by 0 error)
-        # DM.v2_1_vectorized,                   # 2.1 and 2.2 have the same formula for gap; only overlap differs
-        DM.v2_2_vectorized,
-        # below are all variations of v2.2
-        DM.v2_3_vectorized,
-        DM.v2_4_vectorized,
-        DM.v2_5_vectorized,
-        DM.v2_6_vectorized,
-    ]
-
-    overlap = False
-    gap = False
-    norm = False
-
-    for dist_matrix_func in dms:
-        if dist_matrix_func is not DM.euclidean_vectorized:
-            # overlap = True
-            gap = True
-            norm = True
-
-        ext = ''
-        ext += ' overlap' if overlap else ''
-        ext += ' gap' if gap else ''
-        ext += ' norm' if norm else ''
-
-        inst, converted_inst = read_instance(dir_name, instance_name)
-        title = dist_matrix_func.__name__.removesuffix('_vectorized')
-        title += ext
-        decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=overlap, use_gap=gap, normalize=norm)
-        feature_vectors = helpers.build_feature_vectors(converted_inst)
-        dist_matrix = decomposer.dist_matrix_func(feature_vectors, decomposer)
-        edges = []
-        n = len(dist_matrix)
-        for i in range(n):
-            for j in range(n):
-                if i < j:
-                    edges.append((i, j, {'dist': dist_matrix[i, j]}))
-
-        G = nx.Graph()
-        G.add_edges_from(edges)
-        dist_dict = defaultdict(dict)
-        for src, dest, data in G.edges(data=True):
-            dist_dict[src][dest] = data['dist']
-
-        fig, ax = plt.subplots()
-        ## makes no sense to plot depot based on coords here bc we're plotting based on dist matrix here (mutlidimensional scaling)
-        # depot = inst.coordinates[0]
-        # ax.scatter(depot[0], depot[1], label='depot', c='red')
-        pos = nx.kamada_kawai_layout(G, dist_dict)
-        nx.draw_networkx_nodes(G, pos, node_size=MARKER_SIZE, ax=ax, label='customers')
-        fig.legend(loc='upper left')
-        ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
-        # plt.suptitle('Euclidean')
-        fig.suptitle(f"{title}")
-        fname = os.path.join(path, title)
-        fig.savefig(fname)
-
-
-def plot_clusters():
-    dir_name = HG
-    instance_name = 'R1_2_1'
-    num_clusters = 3
-    # overlap, gap, norm
-    euc = (False, False, False)
-    ol = (True, False, True)
-    gap = (False, True, True)
-    flag = euc
-    dist_matrix_func = DM.v2_3_vectorized
-    dist_matrix_func = DM.euclidean_vectorized
-
-    ext = ''
-    ext += ' overlap' if flag[0] else ''
-    ext += ' gap' if flag[1] else ''
-    ext += ' norm' if flag[2] else ''
-
-    inst, converted_inst = read_instance(dir_name, instance_name)
-    title = dist_matrix_func.__name__.removesuffix('_vectorized')
-    title += ext
-    # decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
-    decomposer = HierarchicalDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=flag[0], use_gap=flag[1], normalize=flag[2])
-    decomposer.num_clusters = num_clusters
-    clusters = decomposer.decompose(converted_inst)
-
-    coords = np.asarray(inst.coordinates)
-    depot = coords[0]
-    fig, ax = plt.subplots()
-    ax.scatter(depot[0], depot[1], label='depot', c='black', s=MARKER_SIZE*2, marker='s') # square
-
-    for i, cluster in enumerate(clusters):
-        x, y = zip(*coords[cluster].tolist())
-        ax.scatter(x, y, label=f'cluster {i+1}', s=MARKER_SIZE)
-
-    fig.legend(loc='upper left')
-    ax.set_title(f'{inst.name} (n={inst.n_customers}, Q={inst.capacity}, v={inst.n_vehicles})')
-    fig.suptitle(f"{title}")
-    plt.show()
-
-
 def calc_omega_factor():
     # TODO
     '''Van Landeghem, H. R. G. (1988)'''
@@ -578,7 +309,7 @@ def analyze_overlap_gap_effect():
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
     for val in input.values():
         for instance_name in val:
-            inst, converted_inst = read_instance(dir_name, instance_name)
+            inst, converted_inst = helpers.read_instance(dir_name, instance_name)
             feature_vectors = helpers.build_feature_vectors(converted_inst)
             fv = feature_vectors.data
             x, y, start, end = np.asarray(list(zip(*fv)))
@@ -645,7 +376,7 @@ def analyze_overlap_gap_effect():
 def test_decompose():
     dir_name = SOLOMON
     instance_name = 'C101'
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     dist_matrix_func = DM.euclidean_vectorized
 
     # decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func, use_overlap=True)
@@ -658,7 +389,7 @@ def test_decompose():
 def test_solver():
     dir_name = HG
     instance_name = 'C1_10_2'
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     time_limit = 10
 
     print(f'instance: {instance_name}')
@@ -669,14 +400,14 @@ def test_solver():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, converted_inst)
+        helpers.print_solution(solution, converted_inst)
 
 
 def test_framework():
     dir_name = HG
     instance_name = 'R2_2_1'
     num_clusters = 2
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     dist_matrix_func = DM.v2_2_vectorized
     time_limit = 10
 
@@ -697,36 +428,7 @@ def test_framework():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, converted_inst)
-
-
-def print_solution(solution, converted_inst, verbose=False):
-    cost = solution.metrics[METRIC_COST]
-    routes = solution.routes
-    extra = solution.extra
-
-    if extra is not None:
-        route_starts = extra[EXTRA_ROUTE_STARTS]
-
-    route_start = None
-    total_wait_time = 0
-    total_time = 0
-    for i, route in enumerate(routes):
-        if extra is not None:
-            route_start = route_starts[i]
-
-        route_time, route_wait_time = compute_route_time_and_wait_time(route, i, converted_inst, route_start, verbose=verbose)
-        total_time += route_time
-        total_wait_time += route_wait_time
-
-    print(f'cost from solver: {cost}')
-    print(f'computed total travel time: {total_time}')
-    print(f'computed total wait time: {total_wait_time}')
-    print(f'extra: {extra}')
-    print(f'num routes: {len(routes)}')
-    print(f'routes: {routes}')
-
-    return total_time, total_wait_time
+        helpers.print_solution(solution, converted_inst)
 
 
 def test_antiderivative_vs_quad():
@@ -809,7 +511,7 @@ def test_dist_matrix_qi_2012(use_mock_data=False):
     dir_name = SOLOMON
     instance_name = 'C101'
     dist_matrix_func = DM.qi_2012_vectorized
-    _, converted_inst = read_instance(dir_name, instance_name)
+    _, converted_inst = helpers.read_instance(dir_name, instance_name)
     decomposer = KMedoidsDecomposer(dist_matrix_func=dist_matrix_func)
 
     if not use_mock_data:
@@ -840,7 +542,7 @@ def validate_routes():
     dir_name = HG
     instance_name = 'RC1_10_1'
     num_clusters = 6
-    inst, converted_inst = read_instance(dir_name, instance_name)
+    inst, converted_inst = helpers.read_instance(dir_name, instance_name)
     dist_matrix_func = DM.v2_2_vectorized
     time_limit = 10
 
@@ -856,7 +558,7 @@ def validate_routes():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        print_solution(solution, converted_inst)
+        helpers.print_solution(solution, converted_inst)
         instance = dict(
             coords = np.array(inst.coordinates),
             demands = np.array(inst.demands),
@@ -887,5 +589,4 @@ if __name__ == '__main__':
     # analyze_overlap_gap_effect()
     # test_antiderivative_vs_quad()
     # test_dist_matrix_qi_2012(use_mock_data=True)
-    # validate_routes()
-    plot_tws()
+    validate_routes()

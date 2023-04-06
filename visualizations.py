@@ -17,10 +17,7 @@ from vrp.decomp.decomposition import Node, VRPInstance
 from vrp.decomp.constants import *
 import vrp.decomp.distance_matrices as DM
 
-from manual_test import read_instance, print_solution
-
 MARKER_SIZE = 10
-TEST_DIR = 'Test'
 
 
 # mock data from Qi 2012
@@ -104,7 +101,7 @@ def s3():
 
 
 def data_gen(dir_name, instance_name, sample_size):
-    inst, converted_inst = read_instance(dir_name, instance_name)
+    inst, converted_inst = helpers.read_instance(dir_name, instance_name)
     sample = random.sample(inst.customers, sample_size)
     data = [inst.depot]
     data.extend(sample)
@@ -164,6 +161,38 @@ def plot_instance(data, title):
 
     ax.set_title(f'{title}')
     plt.show()
+
+
+# TODO: tw distribution per cluster?
+def plot_tw(dir_name, instance_name):
+    inst, _ = helpers.read_instance(dir_name, instance_name)
+    start_times = np.asarray(inst.earliest[1:])
+    end_times = np.asarray(inst.latest[1:])
+    tws = list(zip(start_times, end_times))
+    # sort by start time
+    tws.sort(key=lambda tw: tw[0])
+    fig, ax = plt.subplots()
+    for i, tw in enumerate(tws):
+        ax.plot(tw, [i, i])
+
+    fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'tw')
+    fig.savefig(fname)
+    plt.close()
+
+
+def plot_tws():
+    dir_name = HG
+    input = {
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
+    }
+    for val in input.values():
+        for instance_name in val:
+            plot_tw(dir_name, instance_name)
 
 
 def plot_multidim_scaling(data, dist_matrix_func):
@@ -254,7 +283,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
         routes = solution.routes
         print()
         print(f'============ {title} cost: {cost} ============')
-        driving_time, wait_time = print_solution(solution, vrp_inst, verbose=verbose)
+        driving_time, wait_time = helpers.print_solution(solution, vrp_inst, verbose=verbose)
         print()
 
         if to_json:

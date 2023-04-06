@@ -8,12 +8,14 @@ from typing import Callable
 import json
 from functools import lru_cache
 
+import cvrplib
 import numpy as np
 import pandas as pd
 import openpyxl as xl
 
 from .decomposition import Node, VRPInstance
 from .logger import logger
+from .constants import *
 
 
 def get_args_parser(script_name):
@@ -271,4 +273,140 @@ def build_feature_vectors(inst, standardize=False):
 
     # By CVRPLIB convention, index 0 is always depot
     return FV(fv_data[1:], fv_data[0])
+
+
+def read_instance(dir_name, instance_name):
+    file_name = os.path.join(CVRPLIB, dir_name, instance_name)
+    inst = cvrplib.read(instance_path=f'{file_name}.txt')
+    converted_inst = convert_cvrplib_to_vrp_instance(inst)
+    return inst, converted_inst
+
+
+def print_solution(solution, converted_inst, verbose=False):
+    cost = solution.metrics[METRIC_COST]
+    routes = solution.routes
+    extra = solution.extra
+
+    if extra is not None:
+        route_starts = extra[EXTRA_ROUTE_STARTS]
+
+    route_start = None
+    total_wait_time = 0
+    total_time = 0
+    for i, route in enumerate(routes):
+        if extra is not None:
+            route_start = route_starts[i]
+
+        route_time, route_wait_time = compute_route_time_and_wait_time(route, i, converted_inst, route_start, verbose=verbose)
+        total_time += route_time
+        total_wait_time += route_wait_time
+
+    print(f'cost from solver: {cost}')
+    print(f'computed total travel time: {total_time}')
+    print(f'computed total wait time: {total_wait_time}')
+    print(f'extra: {extra}')
+    print(f'num routes: {len(routes)}')
+    print(f'routes: {routes}')
+
+    return total_time, total_wait_time
+
+
+def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_start=None, verbose=False):
+    # `route` doesn't include depot; `inst` does include depot = 0
+
+    depot = 0
+    first_stop = route[0]
+    route_wait_time = 0
+    route_time = inst.nodes[depot].distances[first_stop]
+
+    # don't count the wait time at the first stop
+    # bc the vehicle could always be dispatched later from the depot
+    # so as to not incur any wait time and it doesn't affect feasibility
+    # NOTE: can't simply start at the earliest start time of the first node,
+    # bc the earliest start time of the first node could be 0 and we can't
+    # start at the first stop at time 0, bc we have to first travel from
+    # deopt to the first stop
+    if route_start is not None:
+        depot_departure_time = route_start
+    else:
+        depot_departure_time = inst.nodes[depot].start_time + inst.nodes[depot].service_time
+    # earliest possible arrival time at the first stop
+    # = earliest possible time to leave the depot + travel time from depot to the first stop
+    travel_time = inst.nodes[depot].distances[first_stop]
+    arrival_time = depot_departure_time + travel_time
+    # logical earliest start time at the first stop
+    # = the later of arrival time and TW earliest start time
+    tw_earliest_start = inst.nodes[first_stop].start_time
+    tw_latest_start = inst.nodes[first_stop].end_time
+    logical_earliest_start = max(arrival_time, tw_earliest_start)
+    # departure time from the first node
+    service_time = inst.nodes[first_stop].service_time
+    departure_time = logical_earliest_start + service_time
+
+    if verbose:
+        print(f'--------------- START ROUTE {route_num + 1} ---------------')
+        print(f'depot departure time = {depot_departure_time}')
+        print(f'travel time from depot to {first_stop} = {travel_time}', end=', ')
+        print(f'coords for deopot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})', end=', ')
+        print(f'coords for stop {first_stop} = ({inst.nodes[first_stop].x_coord}, {inst.nodes[first_stop].y_coord})')
+
+        print(f'stop = {first_stop}', end=', ')
+        print(f'arrival time = {arrival_time}', end=', ')
+        print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
+        print(f'logical earliest start = {logical_earliest_start}', end=', ')
+        print(f'service time = {service_time}', end=', ')
+        print(f'departure time = {departure_time}')
+        print()
+
+    prev_stop = first_stop
+    for stop in route[1:]: # start counting wait time from the 2nd stop
+        travel_time = inst.nodes[prev_stop].distances[stop]
+        route_time += travel_time
+        tw_earliest_start = inst.nodes[stop].start_time
+        tw_latest_start = inst.nodes[stop].end_time
+        arrival_time = departure_time + travel_time
+        # Wait if we arrive before earliest start
+        wait_time = max(0, tw_earliest_start - arrival_time)
+        route_wait_time += wait_time
+        logical_earliest_start = arrival_time + wait_time
+        service_time = inst.nodes[stop].service_time
+        departure_time = logical_earliest_start + service_time
+
+        if verbose:
+            print(f'travel time from {prev_stop} to {stop} = {travel_time}', end=', ')
+            print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
+            print(f'coords for stop {stop} = ({inst.nodes[stop].x_coord}, {inst.nodes[stop].y_coord})')
+
+            print(f'stop = {stop}', end=', ')
+            print(f'arrival time = {arrival_time}', end=', ')
+            print(f'TW = [{tw_earliest_start}, {tw_latest_start}]', end=', ')
+            print(f'wait time={wait_time}', end=', ')
+            print(f'logical earliest start = {logical_earliest_start}', end=', ')
+            print(f'service time = {service_time}', end=', ')
+            print(f'departure time = {departure_time}')
+            print()
+
+        prev_stop = stop
+
+    # back to the depot
+    travel_time = inst.nodes[prev_stop].distances[depot]
+    route_time += travel_time
+    arrival_time = departure_time + travel_time
+    tw_earliest_start = inst.nodes[depot].start_time
+    tw_latest_start = inst.nodes[depot].end_time
+
+    if verbose:
+        print(f'travel time from {prev_stop} to depot = {inst.nodes[prev_stop].distances[depot]}', end=', ')
+        print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
+        print(f'coords for depot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})')
+        print(f'return time to depot = {arrival_time}', end=', ')
+        print(f'depot TW = [{tw_earliest_start}, {tw_latest_start}]')
+        print()
+
+        print(f'route time = {route_time}')
+        print(f'route wait time = {route_wait_time}')
+        print(f'--------------- END ROUTE {route_num + 1} ---------------')
+        print()
+
+    return route_time, route_wait_time
 

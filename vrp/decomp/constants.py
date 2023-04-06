@@ -5,6 +5,9 @@ CVRPLIB = 'CVRPLIB'
 SOLOMON = 'Vrp-Set-Solomon' # n=100; 56 instances
 HG = 'Vrp-Set-HG' # n=[200, 400, 600, 800, 1000]; 60 instances each
 
+# dir name for test output
+TEST_DIR = 'Test'
+
 # metrics and extra data returned by the solver
 METRIC_COST = 'cost'
 EXTRA_ROUTE_STARTS = 'route_starts'
