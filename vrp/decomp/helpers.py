@@ -245,7 +245,7 @@ class FV():
 
 
 @lru_cache(maxsize=1)
-def build_feature_vectors(inst, standardize=False):
+def build_feature_vectors(inst: VRPInstance, standardize=False, include_depot=False):
     """Build feature vectors for clustering from VRP problem instance.
     A list of feature vectors representing the customer nodes
     to be clustered, excluding the depot.
@@ -272,7 +272,10 @@ def build_feature_vectors(inst, standardize=False):
         fv_data = standardize_feature_vectors(fv_data)
 
     # By CVRPLIB convention, index 0 is always depot
-    return FV(fv_data[1:], fv_data[0])
+    if include_depot:
+        return FV(fv_data, fv_data[0])
+    else:
+        return FV(fv_data[1:], fv_data[0])
 
 
 def read_instance(dir_name, instance_name):

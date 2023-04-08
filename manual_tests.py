@@ -272,10 +272,40 @@ def dist_matrix_to_excel():
     # print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
-def calc_omega_factor():
-    # TODO
+def calc_omega_factor(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
     '''Van Landeghem, H. R. G. (1988)'''
-    pass
+    if cluster is None:
+        start_times = np.asarray(inst.earliest[1:])
+        end_times = np.asarray(inst.latest[1:])
+    else:
+        start_times = np.asarray(inst.earliest)[cluster]
+        end_times = np.asarray(inst.latest)[cluster]
+    
+    n = len(start_times)
+    tw_sizes = end_times - start_times
+    avg_tw_size = tw_sizes.sum() / n
+    planning_horizon = max(end_times) - min(start_times)
+    omega_factor = avg_tw_size / planning_horizon * 100
+    return omega_factor
+
+
+def calc_omega_factors():
+    dir_name = HG
+    input = {
+        # 'test': ['C1_2_1', 'C2_2_1'],
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
+    }
+    for val in input.values():
+        for instance_name in val:
+            inst, _ = helpers.read_instance(dir_name, instance_name)
+            omega_factor = calc_omega_factor(inst)
+            print(f'{instance_name} omega factor: {round(omega_factor, 2)}%')
+        print()
 
 
 def analyze_overlap_gap_effect():
@@ -405,10 +435,10 @@ def test_solver():
 
 def test_framework():
     dir_name = HG
-    instance_name = 'R2_2_1'
-    num_clusters = 2
+    instance_name = 'C2_10_1'
+    num_clusters = 4
     _, converted_inst = helpers.read_instance(dir_name, instance_name)
-    dist_matrix_func = DM.v2_2_vectorized
+    dist_matrix_func = DM.euclidean_vectorized
     time_limit = 10
 
     print(f'instance: {instance_name}')
@@ -428,7 +458,7 @@ def test_framework():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        helpers.print_solution(solution, converted_inst)
+        helpers.print_solution(solution, converted_inst, verbose=True)
 
 
 def test_antiderivative_vs_quad():
@@ -589,4 +619,5 @@ if __name__ == '__main__':
     # analyze_overlap_gap_effect()
     # test_antiderivative_vs_quad()
     # test_dist_matrix_qi_2012(use_mock_data=True)
-    validate_routes()
+    # validate_routes()
+    calc_omega_factors()

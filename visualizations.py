@@ -144,7 +144,7 @@ def build_vrp_instance_from_mock(data):
     return inst
 
 
-def plot_instance(data, title):
+def plot_instance(data, title, annotate=False):
     depot = data[0]
     cols = list(zip(*data[1:])) # customers only
     x, y = cols[0], cols[1]
@@ -155,19 +155,23 @@ def plot_instance(data, title):
     ax.scatter(x, y, label='customers')
     fig.legend(loc='upper left')
 
-    # annotate customers
-    for i in range(len(data[1:])):
-        ax.annotate(i+1, (x[i], y[i]))
+    if annotate:
+        # annotate customers
+        for i in range(len(data[1:])):
+            ax.annotate(i+1, (x[i], y[i]))
 
     ax.set_title(f'{title}')
     plt.show()
 
 
-# TODO: tw distribution per cluster?
-def plot_tw(dir_name, instance_name):
-    inst, _ = helpers.read_instance(dir_name, instance_name)
-    start_times = np.asarray(inst.earliest[1:])
-    end_times = np.asarray(inst.latest[1:])
+def plot_tw(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
+    if cluster is None:
+        start_times = np.asarray(inst.earliest[1:])
+        end_times = np.asarray(inst.latest[1:])
+    else:
+        start_times = np.asarray(inst.earliest)[cluster]
+        end_times = np.asarray(inst.latest)[cluster]
+
     tws = list(zip(start_times, end_times))
     # sort by start time
     tws.sort(key=lambda tw: tw[0])
@@ -192,7 +196,8 @@ def plot_tws():
     }
     for val in input.values():
         for instance_name in val:
-            plot_tw(dir_name, instance_name)
+            inst, _ = helpers.read_instance(dir_name, instance_name)
+            plot_tw(inst)
 
 
 def plot_multidim_scaling(data, dist_matrix_func):
@@ -224,16 +229,16 @@ def plot_multidim_scaling(data, dist_matrix_func):
     plt.show()
 
 
-def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name, to_json=False):
+def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name=None, to_json=False, num_clusters=2):
     title = sample_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
-    num_clusters = 2
 
     decomposer = KMedoidsDecomposer(
         dist_matrix_func=dist_matrix_func,
         num_clusters=num_clusters,
         use_overlap=True,
         use_gap=True,
-        normalize=True
+        normalize=True,
+        #penalize_gap=True,
     )
 
     clusters = decomposer.decompose(vrp_inst)
@@ -258,7 +263,7 @@ class MockDecomposer:
         return self.clusters
 
 
-def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=False, to_json=False, verbose=False):
+def solve(vrp_inst, clusters, title, min_total, output_file_name=None, no_decomp=False, to_json=False, verbose=False):
     num_clusters = 2
     time_limit = 5
 
@@ -267,6 +272,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
     else:
         # solver = HgsSolverWrapper(time_limit=time_limit)
         solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
+
     if no_decomp:
         solution = solver.solve(vrp_inst)
         title = 'no decomp'
@@ -300,7 +306,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name, no_decomp=Fals
         return solution
 
 
-def plot_clusters(clusters, title, clusters_dir):
+def plot_clusters(data, clusters, title, clusters_dir, annotate=False):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots(layout='constrained')
@@ -312,11 +318,12 @@ def plot_clusters(clusters, title, clusters_dir):
     for i, cluster in enumerate(clusters):
         ax.scatter(x[cluster], y[cluster], label=f'cluster {i+1}')
 
-    # annotate customers
-    cols = list(zip(*data[1:])) # customers only
-    x, y = cols[0], cols[1]
-    for i in range(len(data[1:])):
-        ax.annotate(i+1, (x[i], y[i]))
+    if annotate:
+        # annotate customers
+        cols = list(zip(*data[1:])) # customers only
+        x, y = cols[0], cols[1]
+        for i in range(len(data[1:])):
+            ax.annotate(i+1, (x[i], y[i]))
 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title}')
@@ -325,7 +332,7 @@ def plot_clusters(clusters, title, clusters_dir):
     fig.savefig(fname)
 
 
-def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir):
+def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=False):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots(layout='constrained')
@@ -342,11 +349,12 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir):
 
         ax.plot(x[route], y[route], label=f'route {i+1}', ls='-', marker='o')
 
-    # annotate customers
-    cols = list(zip(*data[1:])) # customers only
-    x, y = cols[0], cols[1]
-    for i in range(len(data[1:])):
-        ax.annotate(i+1, (x[i], y[i]))
+    if annotate:
+        # annotate customers
+        cols = list(zip(*data[1:])) # customers only
+        x, y = cols[0], cols[1]
+        for i in range(len(data[1:])):
+            ax.annotate(i+1, (x[i], y[i]))
 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}, wait time: {wait_time})')
@@ -355,7 +363,7 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir):
     fig.savefig(fname)
 
 
-if __name__ == '__main__':
+def plot_mock_data():
     # data_funcs = [mock_qi_2012, s1, s2, s3]
     data_funcs = [s3]
     dist_matrix_funcs = [DM.euclidean_vectorized, DM.v2_2_vectorized, DM.qi_2012_vectorized]
@@ -369,41 +377,33 @@ if __name__ == '__main__':
         data = data_func()
         sample_name = data_func.__name__
 
-        # dir_name = HG
-        # instance_name = 'R2_10_1'
-        # sample_size = 20
-        # data = data_gen(dir_name, instance_name, sample_size)
-
         vrp_inst = build_vrp_instance_from_mock(data)
 
         '''STEP 1'''
-        # plot_instance(data, sample_name)
+        # plot_instance(data, sample_name, annotate=True)
 
-        clusters_dir = os.path.join(TEST_DIR, 'clusters')
-        helpers.make_dirs(clusters_dir)
-        clusters_output_file_name = os.path.join(clusters_dir, f'{sample_name}')
-
-        routes_dir = os.path.join(TEST_DIR, 'routes', ext)
-        helpers.make_dirs(routes_dir)
-        routes_output_file_name = os.path.join(routes_dir, f'{sample_name}')
+        clusters_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'clusters')
+        clusters_dir = os.path.dirname(clusters_json_output)
+        routes_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'routes', ext)
+        routes_dir = os.path.dirname(routes_json_output)
 
         '''STEP 2.1'''
         # for dist_matrix_func in dist_matrix_funcs:
-        #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_output_file_name, to_json=True)
+        #     cluster(vrp_inst, dist_matrix_func, sample_name, clusters_json_output, to_json=True)
 
-        clusters_data_gen = helpers.read_json_gen(clusters_output_file_name)
+        clusters_data_gen = helpers.read_json_gen(clusters_json_output)
         for clusters_data in clusters_data_gen:
             title = clusters_data['title']
             clusters = clusters_data['clusters']
 
             '''STEP 2.2'''
-            # plot_clusters(clusters, title, clusters_dir)
+            # plot_clusters(data, clusters, title, clusters_dir, annotate=True)
 
             '''STEP 3.1'''
-            # solve(vrp_inst, clusters, title, min_total, routes_output_file_name, to_json=True, verbose=True)
+            # solve(vrp_inst, clusters, title, min_total, routes_json_output, to_json=True, verbose=True)
 
         '''STEP 3.2'''
-        routes_data_gen = helpers.read_json_gen(routes_output_file_name)
+        routes_data_gen = helpers.read_json_gen(routes_json_output)
         for routes_data in routes_data_gen:
             title = routes_data['title']
             cost = routes_data['cost']
@@ -412,5 +412,17 @@ if __name__ == '__main__':
             routes = routes_data['routes']
 
             title = title + ' - ' + ext
-            plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir)
+            plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=True)
 
+
+if __name__ == '__main__':
+    dir_name = HG
+    instance_name = 'C1_2_1'
+    _, vrp_inst = helpers.read_instance(dir_name, instance_name)
+    data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
+    dist_matrix_funcs = [DM.v2_9_vectorized] #[DM.euclidean_vectorized, DM.v2_2_vectorized]
+
+    for dist_matrix_func in dist_matrix_funcs:
+        title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
+        clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=4)
+        plot_clusters(data, clusters, title, TEST_DIR)

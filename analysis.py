@@ -48,8 +48,11 @@ def get_avg(df, name):
     # Default python string sort would cause R1_10_10 to appear after R1_10_1
     # but before R1_10_2, like this: R1_10_1, R1_10_10, R1_10_2, R1_10_3, etc.
     # NOTE: this quick hack only works for HG instance names
-    # i.e. C1_10_1, R1_10_10, RC1_10_9
-    sort = lambda x: x.str[6:].str.strip('_').astype(int)
+    # i.e. C1_10_1, R1_2_10, RC1_10_9
+    sort = lambda x: x.str.split('_', expand=True)[2].astype(int)
+    # equivalent regex; select column 0 to convert type from DataFrame to Series
+    # sort = lambda x: x.str.extract(r'\w\d_\d{1,2}_(\d{1,2})')[0].astype(int)
+
     # must use as_index=False, so the group by key (KEY_INSTANCE_NAME)
     # isn't used as index, otherwise it screws up column assignment
     # in comparision code, where comp['col_name'] = df[KEY_COST] - dfs['euc'][KEY_COST]
