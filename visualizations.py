@@ -5,7 +5,9 @@ import random
 import pprint as pp
 from collections import defaultdict
 
+import cvrplib
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
 
@@ -164,7 +166,7 @@ def plot_instance(data, title, annotate=False):
     plt.show()
 
 
-def plot_tw(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
+def plot_tw(inst: cvrplib.Instance.VRPTW, title, cluster=None, save_fig=False, fname=None):
     if cluster is None:
         start_times = np.asarray(inst.earliest[1:])
         end_times = np.asarray(inst.latest[1:])
@@ -177,16 +179,24 @@ def plot_tw(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
     tws.sort(key=lambda tw: tw[0])
     fig, ax = plt.subplots()
     for i, tw in enumerate(tws):
+        ax.set_title(title)
+        ax.set_xlabel('time windows')
+        ax.set_ylabel('nodes')
         ax.plot(tw, [i, i])
 
-    fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'tw')
-    fig.savefig(fname)
+    if save_fig:
+        if fname is None:
+            fname = helpers.create_full_path_file_name(title, TEST_DIR, 'plot')
+        fig.savefig(fname)
+    else:
+        plt.show()
     plt.close()
 
 
 def plot_tws():
     dir_name = HG
     input = {
+        # 'test': ['C1_2_1'],
         'C1': C1_10,
         'C2': C2_10,
         'R1': R1_10,
@@ -194,10 +204,35 @@ def plot_tws():
         'RC1': RC1_10,
         'RC2': RC2_10,
     }
+    fname = helpers.create_full_path_file_name(title, TEST_DIR, 'plot', 'tw')
     for val in input.values():
         for instance_name in val:
             inst, _ = helpers.read_instance(dir_name, instance_name)
-            plot_tw(inst)
+            plot_tw(inst, title=instance_name, save_fig=True, fname=fname)
+
+
+def plot_tws_per_cluster():
+    dir_name = HG
+    instance_name = 'C1_10_1'
+    num_clusters = 10
+    inst, converted_inst = helpers.read_instance(dir_name, instance_name)
+    dist_matrix_func = DM.euclidean_vectorized
+    ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+
+    decomposer = KMedoidsDecomposer(
+        dist_matrix_func=dist_matrix_func,
+        num_clusters=num_clusters,
+        use_overlap=True,
+        use_gap=True,
+        normalize=True,
+        # penalize_gap=True,
+    )
+    clusters = decomposer.decompose(converted_inst)
+
+    for i, cluster in enumerate(clusters):
+        title = f'{instance_name} {ext} cluster {i+1}'
+        fname = helpers.create_full_path_file_name(title, TEST_DIR, 'plot', 'tw_per_cluster')
+        plot_tw(inst, title=title, cluster=cluster, save_fig=True, fname=fname)
 
 
 def plot_multidim_scaling(data, dist_matrix_func):
@@ -363,6 +398,83 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, 
     fig.savefig(fname)
 
 
+def plot_overlap_gap_amount():
+    dir_name = HG
+    input = {
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
+    }
+    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
+    for val in input.values():
+        for instance_name in val:
+            inst, converted_inst = helpers.read_instance(dir_name, instance_name)
+            feature_vectors = helpers.build_feature_vectors(converted_inst)
+            fv = feature_vectors.data
+            x, y, start, end = np.asarray(list(zip(*fv)))
+            planning_horizon = end.max() - start.min()
+
+            constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=False)
+            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
+            overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
+            gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
+            overlap_p = overlap_count / df['overlap'].count()
+            overlap_p = round(overlap_p * 100, 2)
+            gap_p = gap_count / df['gap'].count()
+            gap_p = round(gap_p * 100, 2)
+            print(f'\n{instance_name}')
+            # % of node pairs in an instance with _any_ overlap/gap
+            print(f'overlap % = {overlap_p}%')
+            print(f'gap % = {gap_p}%')
+
+            # pairwise size of overlap/gap compared to the planning horizon
+            overlaps = constituents_matrix['overlap']
+            # overlaps = overlaps[overlaps != 0]
+            gaps = constituents_matrix['gap']
+            # gaps = gaps[gaps != 0]
+            overlaps.sort()
+            gaps.sort()
+
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5.4))
+            y_max = planning_horizon * 1.05
+            text_x = len(overlaps) * 0.4 # same for gaps when 0s are not filtered out
+            text_y = planning_horizon * 0.2
+
+            ax1.plot(overlaps)
+            ax1.fill_between(np.arange(len(overlaps)), overlaps)
+            # Use double curly braces to "escape" literal curly braces that only LaTeX understands
+            ax1.text(text_x, text_y, rf'$\sum_{{overlaps}} = {overlaps.sum():,}$')
+            ax1.set_ylim(top=y_max)
+
+            ax1.set_title('Amount of Overlaps')
+            # draw a horizontal line
+            ax1.axhline(planning_horizon, ls='--', c='red')
+            arrow_head_x = len(overlaps) * 0.3 # middle shifted to the left by 20%
+            arrow_head_y = planning_horizon
+            arrow_tail_x = len(overlaps) * 0.45
+            arrow_tail_y = planning_horizon * 0.8
+            ax1.annotate('planning horizon', xy=(arrow_head_x, arrow_head_y),
+                        xytext=(arrow_tail_x, arrow_tail_y),
+                        arrowprops=dict(facecolor='black', shrink=0.05))
+
+            ax2.plot(gaps)
+            ax2.fill_between(np.arange(len(gaps)), gaps)
+            ax2.text(text_x, text_y, rf'$\sum_{{gaps}}$ = {gaps.sum():,}')
+            ax2.set_ylim(top=y_max)
+
+            ax2.set_title('Amount of Gaps')
+            ax2.axhline(planning_horizon, ls='--', c='red')
+            fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlaps, {gap_p}% gaps)') #, fontweight='bold')
+            # plt.show()
+            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect (1k)')
+            helpers.make_dirs(path)
+            fname = os.path.join(path, instance_name)
+            fig.savefig(fname)
+
+
 def plot_mock_data():
     # data_funcs = [mock_qi_2012, s1, s2, s3]
     data_funcs = [s3]
@@ -416,6 +528,9 @@ def plot_mock_data():
 
 
 if __name__ == '__main__':
+    plot_tws_per_cluster()
+    exit()
+
     dir_name = HG
     instance_name = 'C1_2_1'
     _, vrp_inst = helpers.read_instance(dir_name, instance_name)

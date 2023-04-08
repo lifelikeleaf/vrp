@@ -272,7 +272,7 @@ def dist_matrix_to_excel():
     # print(dist_matrix[10, 10]) # dist to self should always be 0
 
 
-def calc_omega_factor(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
+def calc_omega_factor(inst: cvrplib.Instance.VRPTW, cluster=None):
     '''Van Landeghem, H. R. G. (1988)'''
     if cluster is None:
         start_times = np.asarray(inst.earliest[1:])
@@ -286,7 +286,7 @@ def calc_omega_factor(inst, cluster=None): # (cvrplib.Instance.VRPTW, list)
     avg_tw_size = tw_sizes.sum() / n
     planning_horizon = max(end_times) - min(start_times)
     omega_factor = avg_tw_size / planning_horizon * 100
-    return omega_factor
+    return avg_tw_size, omega_factor
 
 
 def calc_omega_factors():
@@ -303,104 +303,33 @@ def calc_omega_factors():
     for val in input.values():
         for instance_name in val:
             inst, _ = helpers.read_instance(dir_name, instance_name)
-            omega_factor = calc_omega_factor(inst)
+            avg_tw_size, omega_factor = calc_omega_factor(inst)
+            print(f'{instance_name} avg TW size: {round(avg_tw_size, 2)}')
             print(f'{instance_name} omega factor: {round(omega_factor, 2)}%')
         print()
 
 
-def analyze_overlap_gap_effect():
+def calc_omega_factors_per_cluster():
     dir_name = HG
-    '''n=200'''
-    # FOCUS_GROUP_C1 = ['C1_2_1', 'C1_2_4', 'C1_2_8']
-    # FOCUS_GROUP_C2 = ['C2_2_1', 'C2_2_4', 'C2_2_8']
-    # FOCUS_GROUP_R1 = ['R1_2_1', 'R1_2_4', 'R1_2_8']
-    # FOCUS_GROUP_R2 = ['R2_2_1', 'R2_2_4', 'R2_2_8']
-    # FOCUS_GROUP_RC1 = ['RC1_2_1', 'RC1_2_4', 'RC1_2_8']
-    # FOCUS_GROUP_RC2 = ['RC2_2_1', 'RC2_2_4', 'RC2_2_8']
-    input = {
-        # 'test': ['RC2_10_8'],
+    instance_name = 'C1_10_1'
+    num_clusters = 10
+    inst, converted_inst = helpers.read_instance(dir_name, instance_name)
+    dist_matrix_func = DM.v2_2_vectorized
 
-        ## n=1000
-        # 'focus_C1': FOCUS_GROUP_C1,
-        # 'focus_C2': FOCUS_GROUP_C2,
-        # 'focus_R1': FOCUS_GROUP_R1,
-        # 'focus_R2': FOCUS_GROUP_R2,
-        # 'focus_RC1': FOCUS_GROUP_RC1,
-        # 'focus_RC2': FOCUS_GROUP_RC2,
+    decomposer = KMedoidsDecomposer(
+        dist_matrix_func=dist_matrix_func,
+        num_clusters=num_clusters,
+        use_overlap=True,
+        use_gap=True,
+        normalize=True,
+        # penalize_gap=True,
+    )
+    clusters = decomposer.decompose(converted_inst)
 
-        ## n=1000
-        'C1': C1_10,
-        'C2': C2_10,
-        'R1': R1_10,
-        'R2': R2_10,
-        'RC1': RC1_10,
-        'RC2': RC2_10,
-    }
-    decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
-    for val in input.values():
-        for instance_name in val:
-            inst, converted_inst = helpers.read_instance(dir_name, instance_name)
-            feature_vectors = helpers.build_feature_vectors(converted_inst)
-            fv = feature_vectors.data
-            x, y, start, end = np.asarray(list(zip(*fv)))
-            planning_horizon = end.max() - start.min()
-
-            constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=False)
-            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
-            overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
-            gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
-            overlap_p = overlap_count / df['overlap'].count()
-            overlap_p = round(overlap_p * 100, 2)
-            gap_p = gap_count / df['gap'].count()
-            gap_p = round(gap_p * 100, 2)
-            print(f'\n{instance_name}')
-            # % of node pairs in an instance with _any_ overlap/gap
-            print(f'overlap % = {overlap_p}%')
-            print(f'gap % = {gap_p}%')
-
-            # pairwise size of overlap/gap compared to the planning horizon
-            overlaps = constituents_matrix['overlap']
-            # overlaps = overlaps[overlaps != 0]
-            gaps = constituents_matrix['gap']
-            # gaps = gaps[gaps != 0]
-            overlaps.sort()
-            gaps.sort()
-
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5.4))
-            y_max = planning_horizon * 1.05
-            text_x = len(overlaps) * 0.4 # same for gaps when 0s are not filtered out
-            text_y = planning_horizon * 0.2
-
-            ax1.plot(overlaps)
-            ax1.fill_between(np.arange(len(overlaps)), overlaps)
-            # Use double curly braces to "escape" literal curly braces that only LaTeX understands
-            ax1.text(text_x, text_y, rf'$\sum_{{overlaps}} = {overlaps.sum():,}$')
-            ax1.set_ylim(top=y_max)
-
-            ax1.set_title('Amount of Overlaps')
-            # draw a horizontal line
-            ax1.axhline(planning_horizon, ls='--', c='red')
-            arrow_head_x = len(overlaps) * 0.3 # middle shifted to the left by 20%
-            arrow_head_y = planning_horizon
-            arrow_tail_x = len(overlaps) * 0.45
-            arrow_tail_y = planning_horizon * 0.8
-            ax1.annotate('planning horizon', xy=(arrow_head_x, arrow_head_y),
-                        xytext=(arrow_tail_x, arrow_tail_y),
-                        arrowprops=dict(facecolor='black', shrink=0.05))
-
-            ax2.plot(gaps)
-            ax2.fill_between(np.arange(len(gaps)), gaps)
-            ax2.text(text_x, text_y, rf'$\sum_{{gaps}}$ = {gaps.sum():,}')
-            ax2.set_ylim(top=y_max)
-
-            ax2.set_title('Amount of Gaps')
-            ax2.axhline(planning_horizon, ls='--', c='red')
-            fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlaps, {gap_p}% gaps)') #, fontweight='bold')
-            # plt.show()
-            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect (1k)')
-            helpers.make_dirs(path)
-            fname = os.path.join(path, instance_name)
-            fig.savefig(fname)
+    for i, cluster in enumerate(clusters):
+        avg_tw_size, omega_factor = calc_omega_factor(inst, cluster)
+        print(f'{instance_name} cluster {i+1} avg TW size: {round(avg_tw_size, 2)}')
+        # print(f'{instance_name} cluster {i+1} omega factor: {round(omega_factor, 2)}%')
 
 
 def test_decompose():
@@ -620,4 +549,5 @@ if __name__ == '__main__':
     # test_antiderivative_vs_quad()
     # test_dist_matrix_qi_2012(use_mock_data=True)
     # validate_routes()
-    calc_omega_factors()
+    # calc_omega_factors()
+    calc_omega_factors_per_cluster()
