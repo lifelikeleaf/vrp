@@ -5,6 +5,9 @@ from scipy.spatial.distance import euclidean as scipy_euclidean
 import numpy as np
 
 from . import helpers
+from .logger import logger
+
+logger = logger.getChild(__name__)
 
 
 ### Public Section ###
@@ -20,48 +23,20 @@ def v2_1_vectorized(feature_vectors, decomposer):
 
 
 def v2_2_vectorized(feature_vectors, decomposer):
-    '''temporal weight'''
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_2)
 
 
-def v2_3_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_3)
+def get_dist_matrix_func_v2_2(overlap_lambda=1, gap_lambda=1):
+    '''temporal weight: with relative TW and relative overlap'''
+    def v2_2_vectorized(feature_vectors, decomposer):
+        logger.info(f'overlap_lambda = {overlap_lambda}; gap_lambda = {gap_lambda}')
 
+        def vectorized_dist_callable(constituents, decomposer):
+            return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda, gap_lambda)
 
-def v2_4_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_4)
+        return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_dist_callable)
 
-
-def v2_5_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_5)
-
-
-def v2_6_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_6)
-
-
-def v2_7_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_7)
-
-
-def v2_8_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_8)
-
-
-def v2_9_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_9)
-
-
-def v2_10_vectorized(feature_vectors, decomposer):
-    '''weighted version of 2.2'''
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v2_10)
+    return v2_2_vectorized
 
 
 def euclidean_vectorized(feature_vectors, decomposer):
@@ -84,6 +59,7 @@ def qi_2012_vectorized(feature_vectors, decomposer=None):
 
 
 def v3_1_vectorized(feature_vectors, decomposer):
+    '''transformed TWs: (start_time, end_time) shifted by euclidean distance and service time'''
     return _dist_matrix_transformed_tw_vectorized(feature_vectors, decomposer)
 
 
@@ -91,8 +67,17 @@ def v4_1_vectorized(feature_vectors, decomposer):
     return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v4_1)
 
 
-def v4_2_vectorized(feature_vectors, decomposer):
-    return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, _vectorized_dist_v4_2)
+def get_dist_matrix_func_v4_1(overlap_lambda=1, gap_lambda=1):
+    '''temporal weight: penalize guaranteed wait time'''
+    def v4_1_vectorized(feature_vectors, decomposer):
+        logger.info(f'overlap_lambda = {overlap_lambda}; gap_lambda = {gap_lambda}')
+
+        def vectorized_dist_callable(constituents, decomposer):
+            return _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda, gap_lambda)
+
+        return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_dist_callable)
+
+    return v4_1_vectorized
 
 
 ''' DEPRECATED: use vectorized versions instead'''
@@ -241,48 +226,8 @@ def _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=1, gap_lambda
     return spatial_temporal_dists
 
 
-def _vectorized_dist_v2_3(constituents, decomposer):
-    '''limit weight up to 50%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.5, gap_lambda=0.5)
-
-
-def _vectorized_dist_v2_4(constituents, decomposer):
-    '''limit weight up to 30%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.3, gap_lambda=0.3)
-
-
-def _vectorized_dist_v2_5(constituents, decomposer):
-    '''limit weight up to 15%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.15, gap_lambda=0.15)
-
-
-def _vectorized_dist_v2_6(constituents, decomposer):
-    '''limit weight up to 50% for overlap, 30% for gap'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.5, gap_lambda=0.3)
-
-
-def _vectorized_dist_v2_7(constituents, decomposer):
-    '''limit weight up to 40%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.4, gap_lambda=0.4)
-
-
-def _vectorized_dist_v2_8(constituents, decomposer):
-    '''limit weight up to 20%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.2, gap_lambda=0.2)
-
-
-def _vectorized_dist_v2_9(constituents, decomposer):
-    '''limit weight up to 10%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.1, gap_lambda=0.1)
-
-
-def _vectorized_dist_v2_10(constituents, decomposer):
-    '''limit weight up to 5%'''
-    return _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=0.05, gap_lambda=0.05)
-
-
 def _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=1, gap_lambda=1):
-    '''tw relative to the planning horizon, overlap relative to tw'''
+    '''penalize guaranteed wait time'''
     relative_overlaps = constituents['relative_overlap']
     relative_tw_widths = constituents['relative_tw_width']
     gaps = constituents['gap']
@@ -314,10 +259,6 @@ def _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=1, gap_lambda
         spatial_temporal_dists *= (1 + temporal_weights)
 
     return spatial_temporal_dists
-
-
-def _vectorized_dist_v4_2(constituents, decomposer):
-    return _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=0.5, gap_lambda=0.5)
 
 
 def _vectorized_euclidean_dist(constituents, decomposer):

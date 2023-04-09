@@ -364,10 +364,10 @@ def test_solver():
 
 def test_framework():
     dir_name = HG
-    instance_name = 'C2_10_1'
+    instance_name = 'C2_2_1'
     num_clusters = 4
     _, converted_inst = helpers.read_instance(dir_name, instance_name)
-    dist_matrix_func = DM.euclidean_vectorized
+    dist_matrix_func = DM.get_dist_matrix_func_v4_1(0.5)
     time_limit = 10
 
     print(f'instance: {instance_name}')
@@ -387,7 +387,7 @@ def test_framework():
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
     else:
-        helpers.print_solution(solution, converted_inst, verbose=True)
+        helpers.print_solution(solution, converted_inst, verbose=False)
 
 
 def test_antiderivative_vs_quad():
@@ -541,7 +541,7 @@ if __name__ == '__main__':
     # dist_matrix_to_excel()
     # test_decompose()
     # test_solver()
-    # test_framework()
+    test_framework()
     # plot_instance()
     # plot_dist_matrix()
     # plot_clusters()
@@ -550,4 +550,4 @@ if __name__ == '__main__':
     # test_dist_matrix_qi_2012(use_mock_data=True)
     # validate_routes()
     # calc_omega_factors()
-    calc_omega_factors_per_cluster()
+    # calc_omega_factors_per_cluster()

@@ -149,13 +149,13 @@ class KMedoidsDecomposer(BaseDistanceMatrixBasedDecomposer):
 
         logger.info('')
         logger.info('Running k-medoids...')
-        logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
         if self.use_overlap:
             logger.info('use overlap...')
         if self.use_gap:
             logger.info('use gap...')
         if self.penalize_gap:
             logger.info('penalize gap...')
+        logger.info(f'using dist_matrix_func {self.dist_matrix_func.__name__}...')
 
         # for 'precomputed' must pass the fit() method a distance matrix
         # instead of a feature vector

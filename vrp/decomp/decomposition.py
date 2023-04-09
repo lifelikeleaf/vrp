@@ -359,6 +359,17 @@ class DecompositionRunner:
         for cluster in self.decomposer.clusters:
             decomp_inst_list.append(self._build_decomposed_instance(cluster))
 
+        # temporarily set self.decomposer.dist_matrix_func to None to avoid
+        # AttributeError: Can't pickle local object 'get_dist_matrix_func_v2_2.<locals>.v2_2_vectorized'
+        # in pool.starmap().
+        # Pool needs to pickle (serialize) everything it sends to its
+        # worker-processes (IPC). Pickling actually only saves the name of a
+        # function and unpickling requires re-importing the function by name.
+        # For that to work, the function needs to be defined at the top-level,
+        # nested functions won't be importable by the child.
+        dist_matrix_func = self.decomposer.dist_matrix_func
+        self.decomposer.dist_matrix_func = None
+
         # start worker processes
         # TODO: how many workers are appropriate?
         # num_workers = min(os.cpu_count(), len(self.decomposer.clusters))
@@ -367,6 +378,9 @@ class DecompositionRunner:
                 self._run_solver_on_decomposed_instance,
                 list(zip(decomp_inst_list, self.decomposer.clusters))
             )
+
+        # set self.decomposer.dist_matrix_func back its original value
+        self.decomposer.dist_matrix_func = dist_matrix_func
 
         total_routes = []
         total_metrics = {}
