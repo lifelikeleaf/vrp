@@ -293,15 +293,13 @@ def cluster(vrp_inst, dist_matrix_func, sample_name, output_file_name=None, to_j
 class MockDecomposer:
     def __init__(self, clusters) -> None:
         self.clusters = clusters
+        self.dist_matrix_func = None
 
     def decompose(self, inst):
         return self.clusters
 
 
-def solve(vrp_inst, clusters, title, min_total, output_file_name=None, no_decomp=False, to_json=False, verbose=False):
-    num_clusters = 2
-    time_limit = 5
-
+def solve(vrp_inst, clusters, title, time_limit=10, min_total=True, output_file_name=None, no_decomp=False, to_json=False, verbose=False):
     if min_total:
         solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=min_total)
     else:
@@ -315,7 +313,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name=None, no_decomp
         decomposer = MockDecomposer(clusters)
         runner = DecompositionRunner(vrp_inst, decomposer, solver)
         runner.decomposer.clusters = clusters
-        solution = runner._run_solver_parallel(num_workers=num_clusters)
+        solution = runner._run_solver_parallel(num_workers=len(clusters))
 
     if solution.metrics[METRIC_COST] == float('inf'):
         print('No feasible solution found.')
@@ -338,7 +336,7 @@ def solve(vrp_inst, clusters, title, min_total, output_file_name=None, no_decomp
             }
             helpers.write_to_json(json_data, output_file_name)
 
-        return solution
+        return solution, driving_time, wait_time
 
 
 def plot_clusters(data, clusters, title, clusters_dir, annotate=False):
@@ -363,7 +361,7 @@ def plot_clusters(data, clusters, title, clusters_dir, annotate=False):
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title}')
     # plt.show()
-    fname = os.path.join(clusters_dir, title)
+    fname = helpers.create_full_path_file_name(title, clusters_dir)
     fig.savefig(fname)
 
 
@@ -394,7 +392,7 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}, wait time: {wait_time})')
     # plt.show()
-    fname = os.path.join(routes_dir, title)
+    fname = helpers.create_full_path_file_name(title, routes_dir)
     fig.savefig(fname)
 
 
@@ -494,9 +492,9 @@ def plot_mock_data():
         '''STEP 1'''
         # plot_instance(data, sample_name, annotate=True)
 
-        clusters_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'clusters')
+        clusters_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'plot', 'clusters')
         clusters_dir = os.path.dirname(clusters_json_output)
-        routes_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'routes', ext)
+        routes_json_output = helpers.create_full_path_file_name(sample_name, TEST_DIR, 'plot', 'routes', ext)
         routes_dir = os.path.dirname(routes_json_output)
 
         '''STEP 2.1'''
@@ -527,17 +525,27 @@ def plot_mock_data():
             plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=True)
 
 
-if __name__ == '__main__':
-    plot_tws_per_cluster()
-    exit()
-
+def plot_instance_data():
     dir_name = HG
-    instance_name = 'C1_2_1'
+    instance_name = 'C2_2_1'
+    num_clusters = 4
+    time_limit = 10
     _, vrp_inst = helpers.read_instance(dir_name, instance_name)
     data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
-    dist_matrix_funcs = [DM.v2_9_vectorized] #[DM.euclidean_vectorized, DM.v2_2_vectorized]
+    dist_matrix_func = DM.get_dist_matrix_func_v2_2()
+    # dist_matrix_func = DM.euclidean_vectorized
 
-    for dist_matrix_func in dist_matrix_funcs:
-        title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
-        clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=4)
-        plot_clusters(data, clusters, title, TEST_DIR)
+    title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
+    clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=num_clusters)
+    clusters_dir = os.path.join(TEST_DIR, 'plot', 'clusters', 'instances')
+    plot_clusters(data, clusters, title, clusters_dir)
+
+    solution, driving_time, wait_time = solve(vrp_inst, clusters, title, time_limit=time_limit, verbose=True)
+    cost = solution.metrics[METRIC_COST]
+    routes = solution.routes
+    routes_dir = os.path.join(TEST_DIR, 'plot', 'routes', 'instances')
+    plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir)
+
+
+if __name__ == '__main__':
+    plot_instance_data()
