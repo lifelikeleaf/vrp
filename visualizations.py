@@ -185,8 +185,8 @@ def plot_tw(inst: cvrplib.Instance.VRPTW, title, cluster=None, save_fig=False, f
         ax.plot(tw, [i, i])
 
     if save_fig:
-        if fname is None:
-            fname = helpers.create_full_path_file_name(title, TEST_DIR, 'plot')
+        manager = plt.get_current_fig_manager()
+        manager.full_screen_toggle()
         fig.savefig(fname)
     else:
         plt.show()
@@ -204,9 +204,10 @@ def plot_tws():
         'RC1': RC1_10,
         'RC2': RC2_10,
     }
-    fname = helpers.create_full_path_file_name(title, TEST_DIR, 'plot', 'tw')
+
     for val in input.values():
         for instance_name in val:
+            fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'tw')
             inst, _ = helpers.read_instance(dir_name, instance_name)
             plot_tw(inst, title=instance_name, save_fig=True, fname=fname)
 
@@ -339,7 +340,7 @@ def solve(vrp_inst, clusters, title, time_limit=10, min_total=True, output_file_
         return solution, driving_time, wait_time
 
 
-def plot_clusters(data, clusters, title, clusters_dir, annotate=False):
+def plot_clusters(data, clusters, title, clusters_dir, annotate=False, save_fig=False):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots(layout='constrained')
@@ -360,12 +361,18 @@ def plot_clusters(data, clusters, title, clusters_dir, annotate=False):
 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title}')
-    # plt.show()
-    fname = helpers.create_full_path_file_name(title, clusters_dir)
-    fig.savefig(fname)
+
+    if save_fig:
+        fname = helpers.create_full_path_file_name(title, clusters_dir)
+        manager = plt.get_current_fig_manager()
+        manager.full_screen_toggle() # save a full screen sized image
+        fig.savefig(fname)
+    else:
+        plt.show()
+    plt.close()
 
 
-def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=False):
+def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=False, save_fig=False):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots(layout='constrained')
@@ -391,9 +398,15 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, 
 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
     ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}, wait time: {wait_time})')
-    # plt.show()
-    fname = helpers.create_full_path_file_name(title, routes_dir)
-    fig.savefig(fname)
+
+    if save_fig:
+        fname = helpers.create_full_path_file_name(title, routes_dir)
+        manager = plt.get_current_fig_manager()
+        manager.full_screen_toggle()
+        fig.savefig(fname)
+    else:
+        plt.show()
+    plt.close()
 
 
 def plot_overlap_gap_amount():
@@ -527,24 +540,25 @@ def plot_mock_data():
 
 def plot_instance_data():
     dir_name = HG
-    instance_name = 'C2_2_1'
+    instances = ['C1_2_1', 'C2_2_1']
     num_clusters = 4
     time_limit = 10
-    _, vrp_inst = helpers.read_instance(dir_name, instance_name)
-    data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
-    dist_matrix_func = DM.get_dist_matrix_func_v2_2()
-    # dist_matrix_func = DM.euclidean_vectorized
+    dist_matrix_funcs = [DM.euclidean_vectorized, DM.get_dist_matrix_func_v2_2()]
 
-    title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
-    clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=num_clusters)
-    clusters_dir = os.path.join(TEST_DIR, 'plot', 'clusters', 'instances')
-    plot_clusters(data, clusters, title, clusters_dir)
+    for instance_name in instances:
+        _, vrp_inst = helpers.read_instance(dir_name, instance_name)
+        data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
+        for dist_matrix_func in dist_matrix_funcs:
+            title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
+            clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=num_clusters)
+            clusters_dir = os.path.join(TEST_DIR, 'plot', 'clusters', 'instances')
+            plot_clusters(data, clusters, title, clusters_dir, save_fig=True, annotate=True)
 
-    solution, driving_time, wait_time = solve(vrp_inst, clusters, title, time_limit=time_limit, verbose=True)
-    cost = solution.metrics[METRIC_COST]
-    routes = solution.routes
-    routes_dir = os.path.join(TEST_DIR, 'plot', 'routes', 'instances')
-    plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir)
+            solution, driving_time, wait_time = solve(vrp_inst, clusters, title, time_limit=time_limit, verbose=True)
+            cost = solution.metrics[METRIC_COST]
+            routes = solution.routes
+            routes_dir = os.path.join(TEST_DIR, 'plot', 'routes', 'instances')
+            plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, save_fig=True, annotate=True)
 
 
 if __name__ == '__main__':
