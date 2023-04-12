@@ -53,8 +53,8 @@ def qi_2012_vectorized(feature_vectors, decomposer=None):
     k1 = 1
     k2 = 1.5
     k3 = 2
-    alpha1 = 0.5
-    alpha2 = 0.5
+    alpha1 = 0.5 # weight for spatial distance
+    alpha2 = 0.5 # weight for temporal distance
     return _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
 
 
@@ -78,6 +78,19 @@ def get_dist_matrix_func_v4_1(overlap_lambda=1, gap_lambda=1):
         return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_dist_callable)
 
     return v4_1_vectorized
+
+
+def get_dist_matrix_func_v5_1(overlap_lambda=1, gap_lambda=1):
+    '''temporal weight: distance ratio'''
+    def v5_1_vectorized(feature_vectors, decomposer):
+        logger.info(f'overlap_lambda = {overlap_lambda}; gap_lambda = {gap_lambda}')
+
+        def vectorized_dist_callable(constituents, decomposer):
+            return _vectorized_dist_v5_1(constituents, decomposer, overlap_lambda, gap_lambda)
+
+        return _dist_matrix_symmetric_vectorized(feature_vectors, decomposer, vectorized_dist_callable)
+
+    return v5_1_vectorized
 
 
 ''' DEPRECATED: use vectorized versions instead'''
@@ -114,6 +127,7 @@ def euclidean(feature_vectors, decomposer):
 ### Private Section ###
 
 def _vectorized_dist_v1(constituents, decomposer):
+    '''temporal dist'''
     euclidean_dists = constituents['euclidean_dist']
     max_tw_widths = constituents['max_tw_width']
     overlaps = constituents['overlap']
@@ -193,7 +207,7 @@ def _vectorized_dist_v2_1(constituents, decomposer):
 
 
 def _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=1, gap_lambda=1):
-    '''tw relative to the planning horizon, overlap relative to tw'''
+    '''temporal weight: tw relative to the planning horizon, overlap relative to tw'''
     relative_overlaps = constituents['relative_overlap']
     relative_tw_widths = constituents['relative_tw_width']
     gaps = constituents['gap']
@@ -227,11 +241,12 @@ def _vectorized_dist_v2_2(constituents, decomposer, overlap_lambda=1, gap_lambda
 
 
 def _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=1, gap_lambda=1):
-    '''penalize guaranteed wait time'''
+    '''temporal weight: penalize gap if guaranteed wait time'''
     relative_overlaps = constituents['relative_overlap']
     relative_tw_widths = constituents['relative_tw_width']
     gaps = constituents['gap']
     euclidean_dists = constituents['euclidean_dist']
+    service_time = constituents['service_time']
 
     temporal_weights = 0
     spatial_temporal_dists = euclidean_dists
@@ -252,11 +267,47 @@ def _vectorized_dist_v4_1(constituents, decomposer, overlap_lambda=1, gap_lambda
             where=((gaps + euclidean_dists) != 0)
         ) * gap_lambda
 
-        # ignoring service time,
-        # if gap - euclidean dist > 0, then there's a guaranteed wait time, which is penalized
-        # otherwise the gap is interpreted as a flexibility for routing, which is encouraged
-        temporal_weights = np.where(gaps - euclidean_dists > 0, temporal_weights, -1 * temporal_weights)
+        # if gap - service_time - euclidean dist > 0,
+        # then there's a guaranteed wait time, which is penalized;
+        # otherwise the gap is interpreted as added flexibility for routing, which is encouraged
+        # Caveat: for a given HG instance, all customers have the same service time
+        temporal_weights = np.where(gaps - service_time - euclidean_dists > 0, temporal_weights, -1 * temporal_weights)
         spatial_temporal_dists *= (1 + temporal_weights)
+
+    return spatial_temporal_dists
+
+
+def _vectorized_dist_v5_1(constituents, decomposer, overlap_lambda=1, gap_lambda=1):
+    '''temporal weight: distance ratio'''
+    relative_overlaps = constituents['relative_overlap']
+    relative_tw_widths = constituents['relative_tw_width']
+    gaps = constituents['gap']
+    euclidean_dists = constituents['euclidean_dist']
+    dist_ratios = euclidean_dists / euclidean_dists.max()
+
+    temporal_weights = 0
+    spatial_temporal_dists = euclidean_dists
+    if decomposer.use_overlap:
+        # temporal_weight = relative_overlap * (1 - relative_tw_width) * dist_ratios * lambda
+        temporal_weights = relative_overlaps * (1 - relative_tw_widths) * dist_ratios * overlap_lambda
+        spatial_temporal_dists *= (1 + temporal_weights)
+
+    # this is safe bc overlap and gap are by definition mutually exclusive,
+    # i.e. a pair of nodes can either have a TW overlap or a TW gap,
+    # or neither, but not both.
+    if decomposer.use_gap:
+        # temporal_weight = gap / (gap + euclidean_dist) * dist_ratios * lambda
+        temporal_weights = np.divide(
+            gaps,
+            (gaps + euclidean_dists),
+            out=np.zeros(gaps.shape),
+            where=((gaps + euclidean_dists) != 0)
+        ) * dist_ratios * gap_lambda
+
+        if decomposer.penalize_gap:
+            spatial_temporal_dists *= (1 + temporal_weights)
+        else:
+            spatial_temporal_dists *= (1 - temporal_weights)
 
     return spatial_temporal_dists
 
@@ -672,6 +723,9 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
     tw_widths_i = end_times_i - start_times_i
     tw_widths_j = end_times_j - start_times_j
 
+    # get the service time of a random customer
+    # for a given HG instance, all customers have the same service time
+    service_time = fv[1][4]
     max_tw_widths = np.maximum(tw_widths_i, tw_widths_j)
     euclidean_dists = np.sqrt((x_coords_j - x_coords_i) ** 2 + (y_coords_j - y_coords_i) ** 2)
     overlaps_or_gaps = np.minimum(end_times_i, end_times_j) - np.maximum(start_times_i, start_times_j)
@@ -734,6 +788,7 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
 
             'gap': gap_matrix,
             'euclidean_dist': euclidean_dist_matrix,
+            'service_time': service_time,
         }
 
         return constituents_matrix
@@ -763,6 +818,7 @@ def _get_constituents_vectorized(fv, decomposer, as_matrix=False):
 
             'gap': gaps,
             'euclidean_dist': euclidean_dists,
+            'service_time': service_time,
         }
 
         return constituents

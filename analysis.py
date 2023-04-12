@@ -21,9 +21,7 @@ def get_best_found(df, name) -> pd.DataFrame:
         # 3. select only the rows that correspond to the min cost within each group
         df.groupby(by=KEY_INSTANCE_NAME)[KEY_COST].idxmin(), # rows
         [KEY_INSTANCE_NAME, KEY_NUM_SUBPROBS, KEY_COST] # cols
-    ].sort_index()
-    # optionally reset the row index; when merged, index is automatically reset
-    #.reset_index(drop=True)
+    ].sort_index().reset_index(drop=True)
 
     # a diff approach but same result
     # cost_wait = df.sort_values(by=[KEY_COST_WAIT]) \
@@ -100,11 +98,13 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
 
         # dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
 
-        versions = ['v2_2']
+        versions = ['v2_2_lambda_0.2', 'v2_2_lambda_0.15', 'v2_2_lambda_0.1', 'v2_2_lambda_0.05', 'v2_2_lambda_0.01']
         for v in versions:
-            # dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
-            # dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
+            dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+            dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
             dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            dfs[f'GapPenGap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapPenGap_{v}')
+            dfs[f'BothPenGap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothPenGap_{v}')
 
         '''END MODIFY'''
 
@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
     dir_name = 'E_name'
     min_total = True
-    print_num_subprobs = False # dump_best must be True for this to be meaningful
+    print_num_subprobs = False # this is only meaningful if dump_best = True
     dump_best = False
     dump_avg = True
     dump_all = False

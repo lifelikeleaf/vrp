@@ -183,30 +183,57 @@ if __name__ == "__main__":
         return sample_benchmarks
 
 
-    '''STEP 1/3'''
-    def k_medoids():
-        # for each instance, run a set of experiments
-        # each experiment is a diff way to decompose the instance
-        experiments = []
+    '''Edit 1/3'''
+    def get_experiments(experiments_only):
+        def k_medoids():
+            # for each instance, run a set of experiments
+            # each experiment is a diff way to decompose the instance
+            experiments = []
 
-        '''Euclidean'''
-        experiments.append(KMedoidsDecomposer(DM.euclidean_vectorized, name='euclidean'))
+            '''Euclidean'''
+            if not experiments_only:
+                experiments.append(KMedoidsDecomposer(DM.euclidean_vectorized, name='euclidean'))
 
-        '''Qi et al 2012'''
-        # experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
+            '''Qi et al 2012'''
+            # experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
 
-        '''temporal weight based'''
-        '''lambda = 100%'''
-        dist_matrix_func = DM.v2_2_vectorized
-        ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-        # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-        experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+            '''temporal weight based'''
+            '''v2.2'''
+            # lam = 0.15
+            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
+            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
-        return experiments
+            '''v2.2 penalize gap'''
+            # lam = 0.15
+            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
+            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapPenGap_{ext}', use_gap=True, normalize=True, penalize_gap=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothPenGap_{ext}', use_overlap=True, use_gap=True, normalize=True, penalize_gap=True))
+
+            '''v4.1 penalize gap if guaranteed wait time'''
+            # lam = 1
+            # dist_matrix_func = DM.get_dist_matrix_func_v4_1()
+            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+
+            '''v5.1 distance ratio'''
+            # lam = 1
+            # dist_matrix_func = DM.get_dist_matrix_func_v5_1()
+            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
+            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+
+            return experiments
+
+        return k_medoids
 
 
-    '''STEP 2/3'''
+    '''Edit 2/3'''
     '''parameters for experiments'''
     num_clusters_range = (10, 10) # inclusive
     repeat_n_times = 1
@@ -214,8 +241,8 @@ if __name__ == "__main__":
     output_dir_name = 'E_name'
     sleep_time = 15
 
-    experiments_only = False # True if only run experiments, don't run Basis
-    experiments = k_medoids
+    experiments_only = False # True if only run experiments and not Basis/No decomp/Euclidean
+    experiments = get_experiments(experiments_only)
     benchmark_dir_name = HG
     input = {
         # HG all
@@ -233,7 +260,7 @@ if __name__ == "__main__":
     '''parameters for experiments'''
 
 
-    '''STEP 3/3'''
+    '''Edit 3/3'''
     '''OF = min driving time'''
     # solver = HgsSolverWrapper(time_limit)
     # solver = GortoolsSolverWrapper(time_limit, min_total=False)
