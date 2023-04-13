@@ -540,16 +540,17 @@ def plot_mock_data():
 
 def plot_instance_data():
     dir_name = HG
-    instances = ['C1_2_1', 'C2_2_1']
+    instances = ['C1_2_1']
     num_clusters = 4
     time_limit = 10
-    dist_matrix_funcs = [DM.euclidean_vectorized, DM.get_dist_matrix_func_v2_2()]
+    lam = 0.1
+    dist_matrix_funcs = [DM.get_dist_matrix_func_v2_2(lam, lam)]
 
     for instance_name in instances:
         _, vrp_inst = helpers.read_instance(dir_name, instance_name)
         data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
         for dist_matrix_func in dist_matrix_funcs:
-            title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized')
+            title = instance_name + ' - ' + dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{str(lam).replace(".", "_")}'
             clusters = cluster(vrp_inst, dist_matrix_func, instance_name, num_clusters=num_clusters)
             clusters_dir = os.path.join(TEST_DIR, 'plot', 'clusters', 'instances')
             plot_clusters(data, clusters, title, clusters_dir, save_fig=True, annotate=True)

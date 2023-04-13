@@ -58,6 +58,13 @@ def qi_2012_vectorized(feature_vectors, decomposer=None):
     return _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
 
 
+def get_qi_2012_vectorized(alpha1=0.5, alpha2=0.5, k1=1, k2=1.5, k3=2):
+    def qi_2012_vectorized(feature_vectors, decomposer=None):
+        return _dist_matrix_qi_2012_vectorized(feature_vectors, k1, k2, k3, alpha1, alpha2)
+
+    return qi_2012_vectorized
+
+
 def v3_1_vectorized(feature_vectors, decomposer):
     '''transformed TWs: (start_time, end_time) shifted by euclidean distance and service time'''
     return _dist_matrix_transformed_tw_vectorized(feature_vectors, decomposer)
