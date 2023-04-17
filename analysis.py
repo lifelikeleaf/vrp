@@ -2,6 +2,7 @@
 
 import os
 import numpy as np
+from scipy.stats import norm
 import matplotlib.pyplot as plt
 import pandas as pd
 import openpyxl as xl
@@ -36,7 +37,7 @@ def get_best_found(df, name) -> pd.DataFrame:
     return cost
 
 
-def get_avg(df, name):
+def get_avg(df):
     # this key function should be vectorized. It should expect a Series
     # and return a Series with the same shape as the input.
     # Thus it must use pandas.Series vectorized string functions for
@@ -59,10 +60,25 @@ def get_avg(df, name):
         .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST]] \
         .reset_index(drop=True)
 
-    # print(f'\n{name}')
-    # print(avg)
-
     return avg
+
+
+def get_variance(df):
+    sort = lambda x: x.str.split('_', expand=True)[2].astype(int)
+    var = df.groupby(by=KEY_INSTANCE_NAME, as_index=False).var() \
+        .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST]] \
+        .reset_index(drop=True)
+
+    return var
+
+
+def get_count(df):
+    sort = lambda x: x.str.split('_', expand=True)[2].astype(int)
+    count = df.groupby(by=KEY_INSTANCE_NAME, as_index=False).count() \
+        .sort_values(by=KEY_INSTANCE_NAME, key=sort)[[KEY_INSTANCE_NAME, KEY_COST]] \
+        .reset_index(drop=True)
+
+    return count
 
 
 def percent_diff(col1, col2, denom=None):
@@ -92,22 +108,24 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             euc = pd.read_excel(input_file_name, sheet_name='euclidean'),
         )
 
-
-        '''STEP 1/2'''
+        '''STEP 1/2 - Comparison'''
         '''MODIFY: sheet names and df column names'''
 
-        # dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
+        '''for type C instances'''
+        # dfs['qi_2012_0.99_0.01'] = pd.read_excel(input_file_name, sheet_name='qi_2012_0.99_0.01')
 
-        versions = ['v2_2_lambda_0.2', 'v2_2_lambda_0.15', 'v2_2_lambda_0.1', 'v2_2_lambda_0.05', 'v2_2_lambda_0.01']
+        # versions = ['v2_2_lambda_0.1']
+        # for v in versions:
+        #     dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+
+        '''for type R and RC instances'''
+        dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
+
+        versions = ['v2_2']
         for v in versions:
-            dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
-            dfs[f'Gap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Gap_{v}')
             dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
-            dfs[f'GapPenGap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'GapPenGap_{v}')
-            dfs[f'BothPenGap_{v}'] = pd.read_excel(input_file_name, sheet_name=f'BothPenGap_{v}')
 
         '''END MODIFY'''
-
 
         basis = pd.read_excel(input_file_name, sheet_name='Basis')
 
@@ -123,7 +141,7 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
             dump_comp(dfs_best, comp_best, dir_name, sub_dir, output_name_best, exp_name, min_total, dump_best)
 
         if dump_avg:
-            dfs_avg = {name: get_avg(df, name) for name, df in dfs.items()}
+            dfs_avg = {name: get_avg(df) for name, df in dfs.items()}
             comp_avg = pd.DataFrame()
             comp_avg[KEY_INSTANCE_NAME] = basis[KEY_INSTANCE_NAME]
             comp_avg['euc vs nod'] = dfs_avg['euc'][KEY_COST] - basis[f'{KEY_COST}_NO_decomp']
@@ -145,7 +163,7 @@ def dump_comp(dfs, comp, dir_name, sub_dir, output_name, sheet_name, min_total, 
         if name != 'euc':
             comp[f'{name}_{KEY_COST}'] = df[KEY_COST] - dfs['euc'][KEY_COST]
 
-    # cells containing the string 'N/A' will be set to None below by formatting
+    # cells containing the substring 'N/A' will be set to None below by formatting
     comp['N/A'] = ''
 
     for name, df in dfs.items():
@@ -286,11 +304,69 @@ def conditional_formatting(dir_name, sub_dir, file_name):
     wb.save(out)
 
 
+def calc_confidence_interval(df, alpha=0.05):
+    probability = 1 - alpha / 2
+    z = norm.ppf(probability) # NORM.S.INV(): inverse of cdf
+    ci = pd.DataFrame()
+    avg = get_avg(df)
+    ci[KEY_INSTANCE_NAME] = avg[KEY_INSTANCE_NAME]
+    ci['mean'] = avg[KEY_COST]
+    ci['variance'] = get_variance(df)[KEY_COST]
+    ci['count'] = get_count(df)[KEY_COST]
+    ci['variance_of_mean'] = ci['variance'] / ci['count']
+    ci['half_width'] = z * np.sqrt(ci['variance_of_mean'])
+    ci['low'] = ci['mean'] - ci['half_width']
+    ci['high'] = ci['mean'] + ci['half_width']
+    return ci
+
+
+def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
+    for exp_name in exp_names:
+        input_file_name = os.path.join(dir_name, f'{dir_name}_{exp_name}.xlsx')
+        dfs = dict(
+            euc = pd.read_excel(input_file_name, sheet_name='euclidean'),
+        )
+
+        '''STEP 1/2 - Confidence Interval'''
+        '''MODIFY: sheet names and df column names'''
+
+        '''for type C instances'''
+        # dfs['qi_2012_0.99_0.01'] = pd.read_excel(input_file_name, sheet_name='qi_2012_0.99_0.01')
+
+        # versions = ['v2_2_lambda_0.1']
+        # for v in versions:
+        #     dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
+
+        '''for type R and RC instances'''
+        dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
+
+        versions = ['v2_2']
+        for v in versions:
+            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+
+        '''END MODIFY'''
+
+        for name, df in dfs.items():
+            # ci = calc_confidence_interval(df, alpha)
+            # out = helpers.create_full_path_file_name(name, dir_name, sub_dir, 'confidence_intervals')
+            # helpers.df_to_excel(ci, file_name=out, sheet_name=exp_name, overlay=False)
+
+            if name != 'euc':
+                filename = f'diff_euc_{name}'
+                diff = pd.DataFrame()
+                diff[KEY_INSTANCE_NAME] = df[KEY_INSTANCE_NAME]
+                diff[KEY_COST] = df[KEY_COST] - dfs['euc'][KEY_COST]
+
+                ci = calc_confidence_interval(diff, alpha)
+                out = helpers.create_full_path_file_name(filename, dir_name, sub_dir, 'confidence_intervals')
+                helpers.df_to_excel(ci, file_name=out, sheet_name=exp_name, overlay=False)
+
+
 if __name__ == '__main__':
     '''STEP 2/2'''
     '''MODIFY: experiment names and dir name'''
 
-    dir_name = 'E_name'
+    dir_name = 'E28'
     min_total = True
     print_num_subprobs = False # this is only meaningful if dump_best = True
     dump_best = False
@@ -310,6 +386,9 @@ if __name__ == '__main__':
     '''END MODIFY'''
 
     sub_dir = file_name = f'{dir_name}_comparison'
+
+    # calc_confidence_intervals(exp_names, dir_name, sub_dir)
+    # exit()
 
     dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg, dump_all=dump_all, min_total=min_total)
     if print_num_subprobs:
