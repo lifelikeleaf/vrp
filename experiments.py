@@ -1,19 +1,15 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
 import os
-import random
-import traceback
 
 import cvrplib
 import pandas as pd
 
 from vrp.decomp.decomposition import DecompositionRunner
-from vrp.decomp.decomposers import KMedoidsDecomposer
-from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 import vrp.decomp.helpers as helpers
 from vrp.decomp.logger import logger
 from vrp.decomp.constants import *
-import vrp.decomp.distance_matrices as DM
+
 
 logger = logger.getChild(__name__)
 
@@ -166,124 +162,4 @@ class ExperimentRunner:
 
                 # run all the decomposition experiments on current VRP instance
                 self.run_experiments(converted_inst)
-
-
-if __name__ == "__main__":
-    # args = helpers.get_args_parser(os.path.basename(__file__))
-
-
-    def sample_benchmarks(sample_size, instance_sizes):
-        sample_benchmarks = []
-        for size in instance_sizes:
-            benchmark = cvrplib.list_names(low=size, high=size, vrp_type='vrptw')
-            sample = random.sample(benchmark, sample_size)
-            benchmark_dir_name = SOLOMON if size == 100 else HG
-            sample_benchmarks.append((sample, benchmark_dir_name))
-
-        return sample_benchmarks
-
-
-    '''Edit 1/3'''
-    def get_experiments(experiments_only):
-        def k_medoids():
-            # for each instance, run a set of experiments
-            # each experiment is a diff way to decompose the instance
-            experiments = []
-
-            '''Euclidean'''
-            if not experiments_only:
-                experiments.append(KMedoidsDecomposer(DM.euclidean_vectorized, name='euclidean'))
-
-            '''Qi et al 2012'''
-            # experiments.append(KMedoidsDecomposer(DM.qi_2012_vectorized, name='qi_2012'))
-
-            '''temporal weight based'''
-            '''v2.2'''
-            # lam = 0.15
-            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-            '''v2.2 penalize gap'''
-            # lam = 0.15
-            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapPenGap_{ext}', use_gap=True, normalize=True, penalize_gap=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothPenGap_{ext}', use_overlap=True, use_gap=True, normalize=True, penalize_gap=True))
-
-            '''v4.1 penalize gap if guaranteed wait time'''
-            # lam = 1
-            # dist_matrix_func = DM.get_dist_matrix_func_v4_1()
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-            '''v5.1 distance ratio'''
-            # lam = 1
-            # dist_matrix_func = DM.get_dist_matrix_func_v5_1()
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-            return experiments
-
-        return k_medoids
-
-
-    '''Edit 2/3'''
-    '''parameters for experiments'''
-    num_clusters_range = (10, 10) # inclusive
-    repeat_n_times = 1
-    time_limit = 10 # use >=20 for HGS, <20 even decomp can't find feasible solution for R1_10_1
-    output_dir_name = 'E_name'
-    sleep_time = 15
-
-    experiments_only = False # True if only run experiments and not Basis/No decomp/Euclidean
-    experiments = get_experiments(experiments_only)
-    benchmark_dir_name = HG
-    input = {
-        # HG all
-        'C1': C1_10,
-        'C2': C2_10,
-        'R1': R1_10,
-        'R2': R2_10,
-        'RC1': RC1_10,
-        'RC2': RC2_10,
-    }
-
-    # sample_size = 10
-    # instance_sizes = [100, 200, 400, 600, 800, 1000]
-    # benchmarks = sample_benchmarks(sample_size, instance_sizes)
-    '''parameters for experiments'''
-
-
-    '''Edit 3/3'''
-    '''OF = min driving time'''
-    # solver = HgsSolverWrapper(time_limit)
-    # solver = GortoolsSolverWrapper(time_limit, min_total=False)
-
-    '''OF = min total time'''
-    solver = GortoolsSolverWrapper(time_limit)
-
-
-    for name, benchmark_class in input.items():
-        helpers.make_dirs(output_dir_name)
-        file_name = f'{output_dir_name}_' + experiments.__name__ + f'_{name}'
-        file_name = os.path.join(output_dir_name, file_name)
-
-        # e.g. [(['C101', 'C102', 'C103'], SOLOMON)]
-        benchmarks = [(benchmark_class, benchmark_dir_name)]
-
-        runner = ExperimentRunner(solver, benchmarks, num_clusters_range, repeat_n_times, file_name, sleep_time=sleep_time)
-        runner.add_experiements(experiments())
-
-        try:
-            runner.run(experiments_only)
-        except Exception as err:
-            tb_msg = traceback.format_exc()
-            logger.error(tb_msg)
-            raise
 

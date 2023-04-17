@@ -19,6 +19,7 @@ from .constants import *
 
 
 def get_args_parser(script_name):
+    # Usage example: args = helpers.get_args_parser(os.path.basename(__file__))
     parser = argparse.ArgumentParser(
         description="Example usages: "
             f"python {script_name} -b=1 -n='C206' -k=3 -t | "
