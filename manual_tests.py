@@ -280,7 +280,7 @@ def calc_omega_factor(inst: cvrplib.Instance.VRPTW, cluster=None):
     else:
         start_times = np.asarray(inst.earliest)[cluster]
         end_times = np.asarray(inst.latest)[cluster]
-    
+
     n = len(start_times)
     tw_sizes = end_times - start_times
     avg_tw_size = tw_sizes.sum() / n
@@ -364,10 +364,11 @@ def test_solver():
 
 def test_framework():
     dir_name = HG
-    instance_name = 'C2_2_1'
-    num_clusters = 4
+    instance_name = 'C1_10_3'
+    num_clusters = 10
     _, converted_inst = helpers.read_instance(dir_name, instance_name)
-    dist_matrix_func = DM.get_dist_matrix_func_v4_1(0.5)
+    lam = 0.1
+    dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
     time_limit = 10
 
     print(f'instance: {instance_name}')
@@ -379,7 +380,7 @@ def test_framework():
         dist_matrix_func=dist_matrix_func,
         num_clusters=num_clusters,
         use_overlap=True,
-        use_gap=True,
+        # use_gap=True,
         normalize=True
     )
     runner = DecompositionRunner(converted_inst, decomposer, solver)
@@ -530,6 +531,77 @@ def validate_routes():
         print(f'driving time excluding waiting time: {driving_time}')
 
 
+def compare_routes_to_bk(decomp=True):
+    '''Compare Euclidean "min total" routes to that of the best known "min driving"
+    solution: an indication of how (un)important the time dimension is.
+    '''
+    dir_name = HG
+    inst_gen = helpers.get_hg_instance_names(2)
+    for instance_name in inst_gen:
+    # for instance_name in ['C1_2_1', 'C2_2_1']:
+        num_clusters = 4
+        _, converted_inst, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
+        dist_matrix_func = DM.euclidean_vectorized
+        if decomp:
+            time_limit = 10
+            ext = '_decomp'
+        else:
+            time_limit = 30
+            ext = ''
+
+        solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
+
+        if decomp:
+            decomposer = KMedoidsDecomposer(
+                dist_matrix_func=dist_matrix_func,
+                num_clusters=num_clusters,
+                normalize=True,
+            )
+            runner = DecompositionRunner(converted_inst, decomposer, solver)
+            solution = runner.run(in_parallel=True, num_workers=num_clusters)
+        else:
+            solution = solver.solve(converted_inst)
+
+        if solution.metrics[METRIC_COST] == float('inf'):
+            print('No feasible solution found.')
+        else:
+            num_matching = 0
+            for bk_route in bk_sol.routes:
+                for my_route in solution.routes:
+                    if my_route == bk_route:
+                        num_matching += 1
+
+            num_bk_routes = len(bk_sol.routes)
+            num_my_routes = len(solution.routes)
+            bk_cost = bk_sol.cost
+            my_cost = solution.metrics[METRIC_COST]
+            percent_matching = round(num_matching / num_bk_routes * 100, 2)
+
+            excel_data = {
+                KEY_INSTANCE_NAME: [instance_name],
+                'num_bk_routes': [num_bk_routes],
+                'num_my_routes': [num_my_routes],
+                'bk_cost': [bk_cost],
+                'my_cost': [my_cost],
+                'num_matching': [num_matching],
+                'percent_matching': [f'{percent_matching}%'],
+            }
+            df = pd.DataFrame(excel_data)
+            sheet_name = instance_name.split('_')[0]
+            helpers.write_to_excel(df, f'compare_routes_to_bk{ext}', sheet_name=sheet_name)
+
+            print()
+            print(f'instance: {instance_name}')
+            print(f'num bk routes: {num_bk_routes}; cost: {bk_cost}')
+            print(f'num my routes: {num_my_routes}; cost: {my_cost}')
+            print(f'num matching routes: {num_matching}')
+            print(f'% matching bk routes: {percent_matching}%')
+            print()
+
+            if decomp:
+                helpers.sleep(10)
+
+
 if __name__ == '__main__':
     # test_normalize_matrix()
     # test_read_json()
@@ -541,7 +613,7 @@ if __name__ == '__main__':
     # dist_matrix_to_excel()
     # test_decompose()
     # test_solver()
-    test_framework()
+    # test_framework()
     # plot_instance()
     # plot_dist_matrix()
     # plot_clusters()
@@ -551,3 +623,4 @@ if __name__ == '__main__':
     # validate_routes()
     # calc_omega_factors()
     # calc_omega_factors_per_cluster()
+    compare_routes_to_bk()

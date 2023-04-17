@@ -278,11 +278,26 @@ def build_feature_vectors(inst: VRPInstance, standardize=False, include_depot=Fa
         return FV(fv_data[1:], fv_data[0])
 
 
-def read_instance(dir_name, instance_name):
+def get_hg_instance_names(n: int):
+    '''Get all Homberger-Gehring instance names given size n in {2, 4, 6, 8, 10}'''
+    types = ['C1', 'C2', 'R1', 'R2', 'RC1', 'RC2']
+    for prefix in types:
+        for i in range(1, 11):
+            instance_name = f'{prefix}_{n}_{i}'
+            yield instance_name
+
+
+def read_instance(dir_name, instance_name, include_bk=False):
     file_name = os.path.join(CVRPLIB, dir_name, instance_name)
-    inst = cvrplib.read(instance_path=f'{file_name}.txt')
+    inst, bk_sol = cvrplib.read(
+        instance_path=f'{file_name}.txt',
+        solution_path=f'{file_name}.sol'
+    )
     converted_inst = convert_cvrplib_to_vrp_instance(inst)
-    return inst, converted_inst
+    if include_bk:
+        return inst, converted_inst, bk_sol
+    else:
+        return inst, converted_inst
 
 
 def print_solution(solution, converted_inst, verbose=False):
