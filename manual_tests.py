@@ -3,6 +3,7 @@
 """Quick and dirty manual tests. Some functions might not be up to date."""
 
 import os
+import sqlite3
 from collections import defaultdict
 import itertools
 from scipy.integrate import quad
@@ -27,6 +28,73 @@ import vrp.decomp.distance_matrices as DM
 def list_benchmark_names():
     benchmark = cvrplib.list_names(low=100, high=100, vrp_type='vrptw')
     print(benchmark)
+
+
+def benchmarks_to_sqlite(db_name: str):
+    '''Example query:
+    select service_time from nodes as n join instances as i
+    where n.instance_name = i.instance_name and i.instance_type = 'C1' group by 1;
+    '''
+    con = sqlite3.connect(db_name)
+    cur = con.cursor()
+
+    sql_create_instances_table = '''
+    CREATE TABLE instances (
+        instance_name TEXT PRIMARY KEY,
+        instance_type TEXT,
+        instance_size INTEGER,
+        vehicle_number INTEGER,
+        vehicle_capacity INTEGER
+    )
+    '''
+
+    sql_create_nodes_table = '''
+    CREATE TABLE nodes (
+        instance_name TEXT REFERENCES instances,
+        node_id INTEGER,
+        x_coord INTEGER,
+        y_coord INTEGER,
+        demand INTEGER,
+        start_time INTEGER,
+        end_time INTEGER,
+        service_time INTEGER
+    )
+    '''
+
+    cur.execute(sql_create_instances_table)
+    cur.execute(sql_create_nodes_table)
+
+    n = 10
+    dir_name = HG
+    insert_list = []
+    inst_gen = helpers.get_hg_instance_names(n)
+    for instance_name in inst_gen:
+    # for instance_name in ['C1_2_1']:
+        instance_type = instance_name.split('_')[0]
+        inst = helpers.read_instance(dir_name, instance_name)[0]
+        instance_size = inst.n_customers
+        vehicle_number = inst.n_vehicles
+        vehicle_capacity = inst.capacity
+
+        params = (instance_name, instance_type, instance_size, vehicle_number, vehicle_capacity)
+        cur.execute('INSERT INTO instances VALUES (?, ?, ?, ?, ?)', params)
+
+        for i in range(len(inst.coordinates)):
+            node_id = i
+            x_coord, y_coord = inst.coordinates[i]
+            demand = inst.demands[i]
+            start_time = inst.earliest[i]
+            end_time = inst.latest[i]
+            service_time = inst.service_times[i]
+
+            row = (instance_name, node_id, x_coord, y_coord, demand,
+                    start_time, end_time, service_time)
+
+            insert_list.append(row)
+
+    cur.executemany('INSERT INTO nodes VALUES (?, ?, ?, ?, ?, ?, ?, ?)', insert_list)
+    con.commit()
+    con.close()
 
 
 def test_standardize_fv():
@@ -535,13 +603,15 @@ def compare_routes_to_bk(decomp=True):
     '''Compare Euclidean "min total" routes to that of the best known "min driving"
     solution: an indication of how (un)important the time dimension is.
     '''
+    n = 10 # instance size
+    num_clusters = 10
+    dist_matrix_func = DM.euclidean_vectorized
     dir_name = HG
-    inst_gen = helpers.get_hg_instance_names(2)
+    inst_gen = helpers.get_hg_instance_names(n)
     for instance_name in inst_gen:
     # for instance_name in ['C1_2_1', 'C2_2_1']:
-        num_clusters = 4
         _, converted_inst, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
-        dist_matrix_func = DM.euclidean_vectorized
+
         if decomp:
             time_limit = 10
             ext = '_decomp'
@@ -623,4 +693,5 @@ if __name__ == '__main__':
     # validate_routes()
     # calc_omega_factors()
     # calc_omega_factors_per_cluster()
-    compare_routes_to_bk()
+    # compare_routes_to_bk(decomp=True)
+    benchmarks_to_sqlite('vrptw.db')

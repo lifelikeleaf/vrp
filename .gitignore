@@ -4,6 +4,7 @@ __pycache__/
 *.xlsx
 *.json
 *.png
+*.db
 
 # Built application files
 *.apk
