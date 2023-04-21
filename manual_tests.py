@@ -6,6 +6,7 @@ import os
 import sqlite3
 from collections import defaultdict
 import itertools
+from difflib import SequenceMatcher
 from scipy.integrate import quad
 
 import cvrplib
@@ -13,6 +14,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
+import Levenshtein
 
 from vrp.third_party.solver.hgs import tools
 import vrp.decomp.helpers as helpers
@@ -607,66 +609,102 @@ def compare_routes_to_bk(decomp=True):
     num_clusters = 10
     dist_matrix_func = DM.euclidean_vectorized
     dir_name = HG
-    inst_gen = helpers.get_hg_instance_names(n)
-    for instance_name in inst_gen:
-    # for instance_name in ['C1_2_1', 'C2_2_1']:
-        _, converted_inst, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
+    close_match_threshold = 0.9
 
-        if decomp:
-            time_limit = 10
-            ext = '_decomp'
-        else:
-            time_limit = 30
-            ext = ''
 
-        solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
+    def compare(bk_sol, my_routes, my_cost):
+        num_full_match = 0
+        num_close_match = 0
+        for bk_route in bk_sol.routes:
+            for my_route in my_routes:
+                # normalized similarity b/t routes
+                norm_sim = Levenshtein.ratio(my_route, bk_route)
 
-        if decomp:
-            decomposer = KMedoidsDecomposer(
-                dist_matrix_func=dist_matrix_func,
-                num_clusters=num_clusters,
-                normalize=True,
-            )
-            runner = DecompositionRunner(converted_inst, decomposer, solver)
-            solution = runner.run(in_parallel=True, num_workers=num_clusters)
-        else:
-            solution = solver.solve(converted_inst)
+                if norm_sim > close_match_threshold:
+                    num_close_match += 1
 
-        if solution.metrics[METRIC_COST] == float('inf'):
-            print('No feasible solution found.')
-        else:
-            num_matching = 0
-            for bk_route in bk_sol.routes:
-                for my_route in solution.routes:
-                    if my_route == bk_route:
-                        num_matching += 1
+                if my_route == bk_route:
+                    num_full_match += 1
 
-            num_bk_routes = len(bk_sol.routes)
-            num_my_routes = len(solution.routes)
-            bk_cost = bk_sol.cost
-            my_cost = solution.metrics[METRIC_COST]
-            percent_matching = round(num_matching / num_bk_routes * 100, 2)
+        num_bk_routes = len(bk_sol.routes)
+        num_my_routes = len(my_routes)
+        bk_cost = bk_sol.cost
+        percent_full_match = round(num_full_match / num_bk_routes * 100, 2)
+        percent_close_match = round(num_close_match / num_bk_routes * 100, 2)
 
-            excel_data = {
-                KEY_INSTANCE_NAME: [instance_name],
-                'num_bk_routes': [num_bk_routes],
-                'num_my_routes': [num_my_routes],
-                'bk_cost': [bk_cost],
-                'my_cost': [my_cost],
-                'num_matching': [num_matching],
-                'percent_matching': [f'{percent_matching}%'],
+        excel_data = {
+            KEY_INSTANCE_NAME: [instance_name],
+            'num_bk_routes': [num_bk_routes],
+            'num_my_routes': [num_my_routes],
+            'bk_cost': [bk_cost],
+            'my_cost': [my_cost],
+            'num_full_match': [num_full_match],
+            'percent_full_match': [f'{percent_full_match}%'],
+            'num_close_match': [num_close_match],
+            'percent_close_match': [f'{percent_close_match}%'],
+        }
+        df = pd.DataFrame(excel_data)
+        sheet_name = instance_name.split('_')[0]
+        helpers.write_to_excel(df, f'compare_routes_to_bk{ext}', sheet_name=sheet_name)
+
+        print()
+        print(f'instance: {instance_name}')
+        print(f'num bk routes: {num_bk_routes}; cost: {bk_cost}')
+        print(f'num my routes: {num_my_routes}; cost: {my_cost}')
+        print(f'num full match routes: {num_full_match}')
+        print(f'% full match bk routes: {percent_full_match}%')
+        print(f'num close match routes: {num_close_match}')
+        print(f'% close match bk routes: {percent_close_match}%')
+        print()
+
+
+    if decomp:
+        time_limit = 10
+        ext = f'_decomp_n={n}'
+    else:
+        time_limit = 30
+        ext = f'_n={n}'
+
+    solver = GortoolsSolverWrapper(time_limit=time_limit, min_total=True)
+    decomposer = KMedoidsDecomposer(
+        dist_matrix_func=dist_matrix_func,
+        num_clusters=num_clusters,
+        normalize=True,
+    )
+    json_file_name = 'euclidean_routes' + ext
+
+    if os.path.isfile(json_file_name + '.json'):
+        # file exists, read solution from it
+        for py_obj in helpers.read_json_gen(json_file_name):
+            instance_name = py_obj[KEY_INSTANCE_NAME]
+            _, _, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
+            routes = py_obj[KEY_ROUTES]
+            cost = py_obj[KEY_COST]
+            compare(bk_sol, routes, cost)
+    else:
+        # file does not exist, solve instances and write solution to json file
+        inst_gen = helpers.get_hg_instance_names(n)
+        for instance_name in inst_gen:
+        # for instance_name in ['C1_2_1']:
+            _, converted_inst, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
+
+            if decomp:
+                runner = DecompositionRunner(converted_inst, decomposer, solver)
+                solution = runner.run(in_parallel=True, num_workers=num_clusters)
+            else:
+                solution = solver.solve(converted_inst)
+
+            routes = solution.routes
+            cost = solution.metrics[METRIC_COST]
+
+            json_data = {
+                KEY_INSTANCE_NAME: instance_name,
+                KEY_ROUTES: routes,
+                KEY_COST: cost,
             }
-            df = pd.DataFrame(excel_data)
-            sheet_name = instance_name.split('_')[0]
-            helpers.write_to_excel(df, f'compare_routes_to_bk{ext}', sheet_name=sheet_name)
+            helpers.write_to_json(json_data, json_file_name)
 
-            print()
-            print(f'instance: {instance_name}')
-            print(f'num bk routes: {num_bk_routes}; cost: {bk_cost}')
-            print(f'num my routes: {num_my_routes}; cost: {my_cost}')
-            print(f'num matching routes: {num_matching}')
-            print(f'% matching bk routes: {percent_matching}%')
-            print()
+            compare(bk_sol, routes, cost)
 
             if decomp:
                 helpers.sleep(10)
@@ -693,5 +731,5 @@ if __name__ == '__main__':
     # validate_routes()
     # calc_omega_factors()
     # calc_omega_factors_per_cluster()
-    # compare_routes_to_bk(decomp=True)
-    benchmarks_to_sqlite('vrptw.db')
+    compare_routes_to_bk()
+    # benchmarks_to_sqlite('vrptw.db')

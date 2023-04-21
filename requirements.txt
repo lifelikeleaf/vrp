@@ -8,3 +8,4 @@ pandas==1.5.2
 openpyxl==3.0.10
 networkx==3.0
 scipy==1.9.3
+Levenshtein==0.21.0
