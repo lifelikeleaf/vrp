@@ -16,6 +16,11 @@ logger = logger.getChild(__name__)
 infinity = float('inf')
 
 
+'''NOTE: to use the HgsSolverWrapper, you must have the HGS-VRPTW solver
+installed under the directory: vrp/third_party/solver/hgs/
+
+See installation instructions at: https://github.com/ortec/euro-neurips-vrp-2022-quickstart/tree/python-bindings
+'''
 class HgsSolverWrapper(AbstractSolverWrapper):
     '''Wraps HGS VRPTW solver.'''
 

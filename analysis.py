@@ -2,7 +2,7 @@
 
 import os
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, t
 import matplotlib.pyplot as plt
 import pandas as pd
 import openpyxl as xl
@@ -305,8 +305,10 @@ def conditional_formatting(dir_name, sub_dir, file_name):
 
 
 def calc_confidence_interval(df, alpha=0.05):
+    n = get_count(df)[KEY_COST][0]
     probability = 1 - alpha / 2
-    z = norm.ppf(probability) # NORM.S.INV(): inverse of cdf
+    # z = norm.ppf(probability) # NORM.S.INV(prob): inverse of cdf
+    z = t.ppf(probability, n - 1) # use t distribution; T.INV(prob, dof)
     ci = pd.DataFrame()
     avg = get_avg(df)
     ci[KEY_INSTANCE_NAME] = avg[KEY_INSTANCE_NAME]
@@ -330,14 +332,14 @@ def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
         '''STEP 1/2 - Confidence Interval'''
         '''MODIFY: sheet names and df column names'''
 
-        '''for type C instances'''
+        '''for type C instances only'''
         # dfs['qi_2012_0.99_0.01'] = pd.read_excel(input_file_name, sheet_name='qi_2012_0.99_0.01')
 
         # versions = ['v2_2_lambda_0.1']
         # for v in versions:
         #     dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
 
-        '''for type R and RC instances'''
+        '''for all instances, but particularly for type R and RC instances'''
         dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
 
         versions = ['v2_2']
@@ -350,14 +352,30 @@ def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
             # ci = calc_confidence_interval(df, alpha)
             # out = helpers.create_full_path_file_name(name, dir_name, sub_dir, 'confidence_intervals')
             # helpers.df_to_excel(ci, file_name=out, sheet_name=exp_name, overlay=False)
+            # continue
 
-            if name != 'euc':
-                filename = f'diff_euc_{name}'
+            # compare 2 systems (using Paired-t Confidence Interval)
+            ref = 'euc' # reference column for comparison
+            # ref = 'qi_2012'
+            if name != ref and name != 'euc':
+                filename = f'diff_{ref}_{name}'
                 diff = pd.DataFrame()
                 diff[KEY_INSTANCE_NAME] = df[KEY_INSTANCE_NAME]
-                diff[KEY_COST] = df[KEY_COST] - dfs['euc'][KEY_COST]
+                diff[KEY_COST] = df[KEY_COST] - dfs[ref][KEY_COST]
 
-                ci = calc_confidence_interval(diff, alpha)
+                raw = calc_confidence_interval(diff, alpha)
+
+                ci = raw.loc[:, [KEY_INSTANCE_NAME, 'mean', 'half_width']]
+                # format a number with a 1000 separator and 2 decimal places,
+                # pad it with '[' on the left and ', ' on the right
+                # so 567.89123, for example, becomes '[567.89, '
+                lo = raw['low'].map('[{:,.2f}, '.format)
+                # pad it with ']' on the right
+                # so 1234.5678, for example, becomes '1,234.57]'
+                hi = raw['high'].map('{:,.2f}]'.format)
+                ci.loc[:, 'interval'] = lo + hi # final form looks like '[567.89, 1,234.57]'
+                ci.loc[:, ['low', 'high']] = raw.loc[:, ['low', 'high']]
+
                 out = helpers.create_full_path_file_name(filename, dir_name, sub_dir, 'confidence_intervals')
                 helpers.df_to_excel(ci, file_name=out, sheet_name=exp_name, overlay=False)
 
@@ -387,8 +405,8 @@ if __name__ == '__main__':
 
     sub_dir = file_name = f'{dir_name}_comparison'
 
-    # calc_confidence_intervals(exp_names, dir_name, sub_dir)
-    # exit()
+    calc_confidence_intervals(exp_names, dir_name, sub_dir)
+    exit()
 
     dump_comparison_data(exp_names, dir_name, sub_dir, file_name, dump_best=dump_best, dump_avg=dump_avg, dump_all=dump_all, min_total=min_total)
     if print_num_subprobs:
