@@ -1,5 +1,7 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+"""Auxiliary code for visualizations. Not guaranteed be up to date."""
+
 import os
 import random
 import pprint as pp
@@ -412,12 +414,13 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, 
 def plot_overlap_gap_amount():
     dir_name = HG
     input = {
-        'C1': C1_10,
-        'C2': C2_10,
-        'R1': R1_10,
-        'R2': R2_10,
-        'RC1': RC1_10,
-        'RC2': RC2_10,
+        'selected': ['R1_10_4', 'R1_10_6', 'R1_10_8', 'R1_10_10']
+        # 'C1': C1_10,
+        # 'C2': C2_10,
+        # 'R1': R1_10,
+        # 'R2': R2_10,
+        # 'RC1': RC1_10,
+        # 'RC2': RC2_10,
     }
     decomposer = KMedoidsDecomposer(dist_matrix_func=None, normalize=False)
     for val in input.values():
@@ -425,11 +428,17 @@ def plot_overlap_gap_amount():
             inst, converted_inst = helpers.read_instance(dir_name, instance_name)
             feature_vectors = helpers.build_feature_vectors(converted_inst)
             fv = feature_vectors.data
-            x, y, start, end = np.asarray(list(zip(*fv)))
+            # FV: x, y, start, end, service_time
+            fv_cols = np.asarray(list(zip(*fv)))
+            start = fv_cols[2]
+            end = fv_cols[3]
             planning_horizon = end.max() - start.min()
 
             constituents_matrix = DM._get_constituents_vectorized(fv, decomposer, as_matrix=False)
-            df = pd.DataFrame({key: val.flatten() for key, val in constituents_matrix.items()})
+            df = pd.DataFrame({
+                'overlap': constituents_matrix['overlap'],
+                'gap': constituents_matrix['gap']
+            })
             overlap_count = df.loc[df['overlap'] > 0, ['overlap']].count()['overlap']
             gap_count = df.loc[df['gap'] > 0, ['gap']].count()['gap']
             overlap_p = overlap_count / df['overlap'].count()
@@ -451,38 +460,45 @@ def plot_overlap_gap_amount():
 
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5.4))
             y_max = planning_horizon * 1.05
+            # position for text
             text_x = len(overlaps) * 0.4 # same for gaps when 0s are not filtered out
             text_y = planning_horizon * 0.2
 
             ax1.plot(overlaps)
             ax1.fill_between(np.arange(len(overlaps)), overlaps)
             # Use double curly braces to "escape" literal curly braces that only LaTeX understands
-            ax1.text(text_x, text_y, rf'$\sum_{{overlaps}} = {overlaps.sum():,}$')
-            ax1.set_ylim(top=y_max)
-
-            ax1.set_title('Amount of Overlaps')
+            # ax1.text(text_x, text_y, rf'$\sum_{{overlap}} = {overlaps.sum():,}$')
+            ax1.set_ylim(ymin=0, ymax=y_max)
+            ax1.set_xticks(np.linspace(1, len(overlaps), 3))
+            ax1.set_xlabel('unique node pairs')
+            ax1.set_ylabel('pairwise overlap size')
+            ax1.set_title('Overlap')
             # draw a horizontal line
             ax1.axhline(planning_horizon, ls='--', c='red')
-            arrow_head_x = len(overlaps) * 0.3 # middle shifted to the left by 20%
-            arrow_head_y = planning_horizon
-            arrow_tail_x = len(overlaps) * 0.45
-            arrow_tail_y = planning_horizon * 0.8
-            ax1.annotate('planning horizon', xy=(arrow_head_x, arrow_head_y),
-                        xytext=(arrow_tail_x, arrow_tail_y),
-                        arrowprops=dict(facecolor='black', shrink=0.05))
+            
 
             ax2.plot(gaps)
             ax2.fill_between(np.arange(len(gaps)), gaps)
-            ax2.text(text_x, text_y, rf'$\sum_{{gaps}}$ = {gaps.sum():,}')
-            ax2.set_ylim(top=y_max)
-
-            ax2.set_title('Amount of Gaps')
+            # ax2.text(text_x, text_y, rf'$\sum_{{gap}}$ = {gaps.sum():,}')
+            ax2.set_ylim(ymin=0, ymax=y_max)
+            ax2.set_xticks(np.linspace(1, len(gaps), 3))
+            ax2.set_xlabel('unique node pairs')
+            ax2.set_ylabel('pairwise gap size')
+            ax2.set_title('Gap')
             ax2.axhline(planning_horizon, ls='--', c='red')
-            fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlaps, {gap_p}% gaps)') #, fontweight='bold')
+
+            arrow_head_x = len(overlaps) * 0.1 # middle shifted to the left by 40%
+            arrow_head_y = planning_horizon
+            arrow_tail_x = len(overlaps) * 0.25
+            arrow_tail_y = planning_horizon * 0.8
+            ax2.annotate(f'planning horizon = {planning_horizon}', xy=(arrow_head_x, arrow_head_y),
+                        xytext=(arrow_tail_x, arrow_tail_y),
+                        arrowprops=dict(facecolor='black', shrink=0.05))
+
+            fig.suptitle(f'{inst.name} ({overlap_p}% of pairs have overlap, {gap_p}% gap)') #, fontweight='bold')
             # plt.show()
-            path = os.path.join(TEST_DIR, 'plot', 'overlap_gap_effect (1k)')
-            helpers.make_dirs(path)
-            fname = os.path.join(path, instance_name)
+            # exit()
+            fname = helpers.create_full_path_file_name(instance_name, TEST_DIR, 'plot', 'overlap_gap_effect (1k)', 'selected')
             fig.savefig(fname)
 
 
@@ -563,4 +579,6 @@ def plot_instance_data():
 
 
 if __name__ == '__main__':
-    plot_instance_data()
+    # plot_instance_data()
+    # plot_mock_data()
+    plot_overlap_gap_amount()

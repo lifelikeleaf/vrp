@@ -1,5 +1,7 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+"""Auxiliary code for manual analysis. Not guaranteed be up to date."""
+
 import os
 import numpy as np
 from scipy.stats import norm, t
@@ -362,6 +364,10 @@ def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
                 diff = pd.DataFrame()
                 diff[KEY_INSTANCE_NAME] = df[KEY_INSTANCE_NAME]
                 diff[KEY_COST] = df[KEY_COST] - dfs[ref][KEY_COST]
+
+                # for comparisons of 2 systems (TSD and Qi) with a 3rd standard system (Euclidean)
+                # see Law et al. 2007, pp. 565-566
+                # alpha = alpha / 2
 
                 raw = calc_confidence_interval(diff, alpha)
 

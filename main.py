@@ -1,5 +1,7 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+"Main entry point for configuring experiments."
+
 import os
 import random
 import traceback
