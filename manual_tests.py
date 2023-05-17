@@ -9,14 +9,16 @@ import itertools
 from difflib import SequenceMatcher
 from scipy.integrate import quad
 
-import cvrplib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import networkx as nx
 import Levenshtein
 
+'''To use hgs tools, you must have hgs installed, see vrp/decomp/solvers.py for details.'''
 from vrp.third_party.solver.hgs import tools
+
+import vrp.third_party.cvrplib as cvrplib
 import vrp.decomp.helpers as helpers
 from vrp.decomp.solvers import HgsSolverWrapper, GortoolsSolverWrapper
 from vrp.decomp.decomposers import (

@@ -3,9 +3,10 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
-from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
-from ..third_party.solver.hgs import tools
-from wurlitzer import pipes
+'''Uncomment for HgsSolverWrapper'''
+# from ..third_party.solver.hgs.baselines.hgs_vrptw import hgspy
+# from ..third_party.solver.hgs import tools
+# from wurlitzer import pipes
 
 from .decomposition import AbstractSolverWrapper, VRPInstance, VRPSolution
 from .logger import logger
@@ -18,6 +19,7 @@ infinity = float('inf')
 
 '''NOTE: to use the HgsSolverWrapper, you must have the HGS-VRPTW solver
 installed under the directory: vrp/third_party/solver/hgs/
+and uncomment the above import statements.
 
 See installation instructions at: https://github.com/ortec/euro-neurips-vrp-2022-quickstart/tree/python-bindings
 '''

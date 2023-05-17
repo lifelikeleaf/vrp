@@ -1,7 +1,7 @@
 numpy==1.22.2
 matplotlib==3.7.1
 wurlitzer==3.0.2
-cvrplib==0.1.1
+requests==2.28.1 # a dependency for the local copy of cvrplib reader (cvrplib==0.1.1)
 scikit-learn==1.2.0
 scikit-learn-extra==0.2.0
 ortools==9.5.2237

@@ -7,7 +7,6 @@ import random
 import pprint as pp
 from collections import defaultdict
 
-import cvrplib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -168,7 +167,8 @@ def plot_instance(data, title, annotate=False):
     plt.show()
 
 
-def plot_tw(inst: cvrplib.Instance.VRPTW, title, cluster=None, save_fig=False, fname=None):
+def plot_tw(inst, title, cluster=None, save_fig=False, fname=None):
+    # inst is a vrp.third_party.cvrplib.Instance.VRPTW
     if cluster is None:
         start_times = np.asarray(inst.earliest[1:])
         end_times = np.asarray(inst.latest[1:])

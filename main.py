@@ -6,7 +6,7 @@ import os
 import random
 import traceback
 
-import cvrplib
+import vrp.third_party.cvrplib as cvrplib
 
 from vrp.decomp.decomposers import KMedoidsDecomposer
 from vrp.decomp.solvers import GortoolsSolverWrapper
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     experiments_only = False # Default: False. (True if only run experiments and not Basis/No decomp/Euclidean)
 
     input = {
-        # 'Test': ['C1_10_1', 'C1_10_2'],
+        # 'Test': ['C1_10_1'],
 
         # Homberger and Gehring 1999 (HG) all 1k-node instances
         'C1': C1_10,

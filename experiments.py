@@ -2,8 +2,8 @@
 
 import os
 
-import cvrplib
 import pandas as pd
+import vrp.third_party.cvrplib as cvrplib
 
 from vrp.decomp.decomposition import DecompositionRunner
 import vrp.decomp.helpers as helpers

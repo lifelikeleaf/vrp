@@ -8,10 +8,10 @@ from typing import Callable
 import json
 from functools import lru_cache
 
-import cvrplib
 import numpy as np
 import pandas as pd
 import openpyxl as xl
+from ..third_party import cvrplib
 
 from .decomposition import Node, VRPInstance
 from .logger import logger
