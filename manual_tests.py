@@ -1,6 +1,6 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
-"""Auxiliary code for manual tests. Not guaranteed be up to date."""
+"""Auxiliary code for manual tests. Not guaranteed to be up to date."""
 
 import os
 import sqlite3

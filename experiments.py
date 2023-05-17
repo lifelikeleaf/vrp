@@ -1,5 +1,7 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
+'''ExperimentRunner for running experiments and writing output data to files.'''
+
 import os
 
 import pandas as pd

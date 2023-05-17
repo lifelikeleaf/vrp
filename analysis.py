@@ -1,6 +1,6 @@
 # Author: Xu Ye <kan.ye@tum.de>
 
-"""Auxiliary code for manual analysis. Not guaranteed be up to date."""
+"""Auxiliary code for manual analysis. Not guaranteed to be up to date."""
 
 import os
 import numpy as np
@@ -113,19 +113,17 @@ def dump_comparison_data(exp_names, dir_name, sub_dir, output_name, dump_best=Fa
         '''STEP 1/2 - Comparison'''
         '''MODIFY: sheet names and df column names'''
 
-        '''for type C instances'''
-        # dfs['qi_2012_0.99_0.01'] = pd.read_excel(input_file_name, sheet_name='qi_2012_0.99_0.01')
-
+        '''for type C instances only'''
         # versions = ['v2_2_lambda_0.1']
         # for v in versions:
         #     dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
 
-        '''for type R and RC instances'''
+        '''for all instances, but particularly for type R and RC instances'''
         dfs['qi_2012'] = pd.read_excel(input_file_name, sheet_name='qi_2012')
 
         versions = ['v2_2']
         for v in versions:
-            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            dfs[f'{v}'] = pd.read_excel(input_file_name, sheet_name=f'{v}')
 
         '''END MODIFY'''
 
@@ -335,8 +333,6 @@ def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
         '''MODIFY: sheet names and df column names'''
 
         '''for type C instances only'''
-        # dfs['qi_2012_0.99_0.01'] = pd.read_excel(input_file_name, sheet_name='qi_2012_0.99_0.01')
-
         # versions = ['v2_2_lambda_0.1']
         # for v in versions:
         #     dfs[f'OL_{v}'] = pd.read_excel(input_file_name, sheet_name=f'OL_{v}')
@@ -346,7 +342,7 @@ def calc_confidence_intervals(exp_names, dir_name, sub_dir, alpha=0.05):
 
         versions = ['v2_2']
         for v in versions:
-            dfs[f'Both_{v}'] = pd.read_excel(input_file_name, sheet_name=f'Both_{v}')
+            dfs[f'{v}'] = pd.read_excel(input_file_name, sheet_name=f'{v}')
 
         '''END MODIFY'''
 

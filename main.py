@@ -50,7 +50,7 @@ if __name__ == "__main__":
             '''TSD: Temporal Spatial Distance'''
             dist_matrix_func = DM.get_dist_matrix_func_v2_2()
             ext = dist_matrix_func.__name__.removesuffix('_vectorized')
-            experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+            experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'{ext}', use_overlap=True, use_gap=True, normalize=True))
 
             '''END MODIFY: add experiments to run'''
 
@@ -70,15 +70,15 @@ if __name__ == "__main__":
     experiments_only = False # Default: False. (True if only run experiments and not Basis/No decomp/Euclidean)
 
     input = {
-        # 'Test': ['C1_10_1'],
+        'Test': ['C1_10_1'],
 
         # Homberger and Gehring 1999 (HG) all 1k-node instances
-        'C1': C1_10,
-        'C2': C2_10,
-        'R1': R1_10,
-        'R2': R2_10,
-        'RC1': RC1_10,
-        'RC2': RC2_10,
+        # 'C1': C1_10,
+        # 'C2': C2_10,
+        # 'R1': R1_10,
+        # 'R2': R2_10,
+        # 'RC1': RC1_10,
+        # 'RC2': RC2_10,
     }
 
     benchmark_dir_name = HG
