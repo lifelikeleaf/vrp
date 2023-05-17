@@ -43,42 +43,14 @@ if __name__ == "__main__":
             '''Edit 1/2'''
             '''MODIFY: add experiments to run'''
 
-            '''Qi et al 2012'''
-            # alpha1 = 0.99 # weight for spatial distance
-            # alpha2 = 0.01 # weight for temporal distance
-            # dist_matrix_func = DM.get_qi_2012_vectorized(alpha1, alpha2)
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'qi_2012_{alpha1}_{alpha2}'))
+            '''Qi et al. 2012'''
+            dist_matrix_func = DM.get_qi_2012_vectorized()
+            experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'qi_2012'))
 
-            '''temporal weight based'''
-            '''v2.2'''
-            # lam = 0.1
-            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-            '''v2.2 penalize gap'''
-            # lam = 0.15
-            # dist_matrix_func = DM.get_dist_matrix_func_v2_2(lam, lam)
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'GapPenGap_{ext}', use_gap=True, normalize=True, penalize_gap=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'BothPenGap_{ext}', use_overlap=True, use_gap=True, normalize=True, penalize_gap=True))
-
-            '''v4.1 penalize gap if guaranteed wait time'''
-            # lam = 1
-            # dist_matrix_func = DM.get_dist_matrix_func_v4_1()
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
-
-            '''v5.1 distance ratio'''
-            # lam = 1
-            # dist_matrix_func = DM.get_dist_matrix_func_v5_1()
-            # ext = dist_matrix_func.__name__.removesuffix('_vectorized') + f'_lambda_{lam}'
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'OL_{ext}', use_overlap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Gap_{ext}', use_gap=True, normalize=True))
-            # experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
+            '''TSD: Temporal Spatial Distance'''
+            dist_matrix_func = DM.get_dist_matrix_func_v2_2()
+            ext = dist_matrix_func.__name__.removesuffix('_vectorized')
+            experiments.append(KMedoidsDecomposer(dist_matrix_func, name=f'Both_{ext}', use_overlap=True, use_gap=True, normalize=True))
 
             '''END MODIFY: add experiments to run'''
 
@@ -98,15 +70,15 @@ if __name__ == "__main__":
     experiments_only = False # Default: False. (True if only run experiments and not Basis/No decomp/Euclidean)
 
     input = {
-        'test': ['C1_10_1', 'C1_10_2'],
+        # 'Test': ['C1_10_1', 'C1_10_2'],
 
         # Homberger and Gehring 1999 (HG) all 1k-node instances
-        # 'C1': C1_10,
-        # 'C2': C2_10,
-        # 'R1': R1_10,
-        # 'R2': R2_10,
-        # 'RC1': RC1_10,
-        # 'RC2': RC2_10,
+        'C1': C1_10,
+        'C2': C2_10,
+        'R1': R1_10,
+        'R2': R2_10,
+        'RC1': RC1_10,
+        'RC2': RC2_10,
     }
 
     benchmark_dir_name = HG

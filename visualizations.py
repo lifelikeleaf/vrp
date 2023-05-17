@@ -374,7 +374,7 @@ def plot_clusters(data, clusters, title, clusters_dir, annotate=False, save_fig=
     plt.close()
 
 
-def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, annotate=False, save_fig=False):
+def plot_routes(data, routes, title, cost=None, driving_time=None, wait_time=None, routes_dir=None, annotate=False, save_fig=False):
     # plot depot
     depot = data[0]
     fig, ax = plt.subplots(layout='constrained')
@@ -399,7 +399,22 @@ def plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, 
             ax.annotate(i+1, (x[i], y[i]))
 
     fig.legend(loc='outside right upper') # 'outside' only works with constrained_layout
-    ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}, wait time: {wait_time})')
+    chart_title = title
+    if cost:
+        chart_title += f' (cost: {cost})'
+    if driving_time:
+        chart_title += f'\n(driving time: {driving_time}'
+        if not wait_time:
+            chart_title += ')'
+    if wait_time:
+        if driving_time:
+            chart_title += '; '
+        else:
+            chart_title += '\n('
+        chart_title += f'waiting time: {wait_time})'
+
+    ax.set_title(chart_title)
+    # ax.set_title(f'{title} (cost: {cost})\n(driving time: {driving_time}; waiting time: {wait_time})')
 
     if save_fig:
         fname = helpers.create_full_path_file_name(title, routes_dir)
@@ -475,7 +490,6 @@ def plot_overlap_gap_amount():
             ax1.set_title('Overlap')
             # draw a horizontal line
             ax1.axhline(planning_horizon, ls='--', c='red')
-            
 
             ax2.plot(gaps)
             ax2.fill_between(np.arange(len(gaps)), gaps)
@@ -578,7 +592,30 @@ def plot_instance_data():
             plot_routes(data, routes, title, cost, driving_time, wait_time, routes_dir, save_fig=True, annotate=True)
 
 
+def plot_bks():
+    dir_name = HG
+    instance_name = 'C1_2_1'
+    _, vrp_inst, bk_sol = helpers.read_instance(dir_name, instance_name, include_bk=True)
+    data = helpers.build_feature_vectors(vrp_inst, include_depot=True).data
+    title = f'{instance_name} - best known solution'
+    cost = bk_sol.cost
+    routes = bk_sol.routes
+
+    route_start = None
+    total_wait_time = 0
+    total_driving_time = 0
+    verbose = False
+    for i, route in enumerate(routes):
+        route_driving_time, route_wait_time = helpers.compute_route_time_and_wait_time(route, i, vrp_inst, route_start, verbose=verbose)
+        total_driving_time += route_driving_time
+        total_wait_time += route_wait_time
+
+    plot_routes(data, routes, title)
+
+
 if __name__ == '__main__':
     # plot_instance_data()
     # plot_mock_data()
-    plot_overlap_gap_amount()
+    # plot_overlap_gap_amount()
+    plot_bks()
+

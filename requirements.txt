@@ -4,6 +4,7 @@ wurlitzer==3.0.2
 cvrplib==0.1.1
 scikit-learn==1.2.0
 scikit-learn-extra==0.2.0
+ortools==9.5.2237
 pandas==1.5.2
 openpyxl==3.0.10
 networkx==3.0

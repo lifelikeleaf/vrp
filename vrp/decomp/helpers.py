@@ -311,23 +311,23 @@ def print_solution(solution, converted_inst, verbose=False):
 
     route_start = None
     total_wait_time = 0
-    total_time = 0
+    total_driving_time = 0
     for i, route in enumerate(routes):
         if extra is not None:
             route_start = route_starts[i]
 
-        route_time, route_wait_time = compute_route_time_and_wait_time(route, i, converted_inst, route_start, verbose=verbose)
-        total_time += route_time
+        route_driving_time, route_wait_time = compute_route_time_and_wait_time(route, i, converted_inst, route_start, verbose=verbose)
+        total_driving_time += route_driving_time
         total_wait_time += route_wait_time
 
     print(f'cost from solver: {cost}')
-    print(f'computed total travel time: {total_time}')
+    print(f'computed total driving time: {total_driving_time}')
     print(f'computed total wait time: {total_wait_time}')
     print(f'extra: {extra}')
     print(f'num routes: {len(routes)}')
     print(f'routes: {routes}')
 
-    return total_time, total_wait_time
+    return total_driving_time, total_wait_time
 
 
 def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_start=None, verbose=False):
@@ -336,7 +336,7 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
     depot = 0
     first_stop = route[0]
     route_wait_time = 0
-    route_time = inst.nodes[depot].distances[first_stop]
+    route_driving_time = inst.nodes[depot].distances[first_stop]
 
     # don't count the wait time at the first stop
     # bc the vehicle could always be dispatched later from the depot
@@ -350,9 +350,9 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
     else:
         depot_departure_time = inst.nodes[depot].start_time + inst.nodes[depot].service_time
     # earliest possible arrival time at the first stop
-    # = earliest possible time to leave the depot + travel time from depot to the first stop
-    travel_time = inst.nodes[depot].distances[first_stop]
-    arrival_time = depot_departure_time + travel_time
+    # = earliest possible time to leave the depot + driving time from depot to the first stop
+    driving_time = inst.nodes[depot].distances[first_stop]
+    arrival_time = depot_departure_time + driving_time
     # logical earliest start time at the first stop
     # = the later of arrival time and TW earliest start time
     tw_earliest_start = inst.nodes[first_stop].start_time
@@ -365,8 +365,8 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
     if verbose:
         print(f'--------------- START ROUTE {route_num + 1} ---------------')
         print(f'depot departure time = {depot_departure_time}')
-        print(f'travel time from depot to {first_stop} = {travel_time}', end=', ')
-        print(f'coords for deopot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})', end=', ')
+        print(f'driving time from depot to {first_stop} = {driving_time}', end=', ')
+        print(f'coords for depot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})', end=', ')
         print(f'coords for stop {first_stop} = ({inst.nodes[first_stop].x_coord}, {inst.nodes[first_stop].y_coord})')
 
         print(f'stop = {first_stop}', end=', ')
@@ -379,11 +379,11 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
 
     prev_stop = first_stop
     for stop in route[1:]: # start counting wait time from the 2nd stop
-        travel_time = inst.nodes[prev_stop].distances[stop]
-        route_time += travel_time
+        driving_time = inst.nodes[prev_stop].distances[stop]
+        route_driving_time += driving_time
         tw_earliest_start = inst.nodes[stop].start_time
         tw_latest_start = inst.nodes[stop].end_time
-        arrival_time = departure_time + travel_time
+        arrival_time = departure_time + driving_time
         # Wait if we arrive before earliest start
         wait_time = max(0, tw_earliest_start - arrival_time)
         route_wait_time += wait_time
@@ -392,7 +392,7 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
         departure_time = logical_earliest_start + service_time
 
         if verbose:
-            print(f'travel time from {prev_stop} to {stop} = {travel_time}', end=', ')
+            print(f'driving time from {prev_stop} to {stop} = {driving_time}', end=', ')
             print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
             print(f'coords for stop {stop} = ({inst.nodes[stop].x_coord}, {inst.nodes[stop].y_coord})')
 
@@ -408,24 +408,24 @@ def compute_route_time_and_wait_time(route, route_num, inst: VRPInstance, route_
         prev_stop = stop
 
     # back to the depot
-    travel_time = inst.nodes[prev_stop].distances[depot]
-    route_time += travel_time
-    arrival_time = departure_time + travel_time
+    driving_time = inst.nodes[prev_stop].distances[depot]
+    route_driving_time += driving_time
+    arrival_time = departure_time + driving_time
     tw_earliest_start = inst.nodes[depot].start_time
     tw_latest_start = inst.nodes[depot].end_time
 
     if verbose:
-        print(f'travel time from {prev_stop} to depot = {inst.nodes[prev_stop].distances[depot]}', end=', ')
+        print(f'driving time from {prev_stop} to depot = {inst.nodes[prev_stop].distances[depot]}', end=', ')
         print(f'coords for prev stop {prev_stop} = ({inst.nodes[prev_stop].x_coord}, {inst.nodes[prev_stop].y_coord})', end=', ')
         print(f'coords for depot = ({inst.nodes[depot].x_coord}, {inst.nodes[depot].y_coord})')
         print(f'return time to depot = {arrival_time}', end=', ')
         print(f'depot TW = [{tw_earliest_start}, {tw_latest_start}]')
         print()
 
-        print(f'route time = {route_time}')
+        print(f'route driving time = {route_driving_time}')
         print(f'route wait time = {route_wait_time}')
         print(f'--------------- END ROUTE {route_num + 1} ---------------')
         print()
 
-    return route_time, route_wait_time
+    return route_driving_time, route_wait_time
 
