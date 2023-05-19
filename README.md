@@ -1,5 +1,7 @@
 # Instructions
 
+Note: this project requires Python 3.9+.
+
 Install all the dependencies:
 ```
 pip install -r requirements.txt
